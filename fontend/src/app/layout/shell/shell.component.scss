@@ -1,0 +1,27 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+
+  &__main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  &__content {
+    flex: 1;
+    padding: 28px;
+    overflow-y: auto;
+    background: var(--color-bg);
+  }
+}
+
+// Mobile: hide sidebar, full-width content
+@media (max-width: 768px) {
+  .shell {
+    snt-sidebar { display: none; }
+    &__content { padding: 16px; }
+  }
+}

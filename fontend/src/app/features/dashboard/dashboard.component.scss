@@ -1,0 +1,15 @@
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.card-section-title {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.mt-6 {
+  margin-top: 8px; // card already has padding; gap handled by page-shell body
+}

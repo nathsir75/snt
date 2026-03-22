@@ -1,0 +1,24 @@
+.student-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--color-bg);
+
+  &__content {
+    flex: 1;
+    padding: 24px 20px;
+    // Ensure content is never hidden behind the fixed bottom nav (64px)
+    padding-bottom: calc(64px + 24px);
+    overflow-y: auto;
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .student-layout__content {
+    padding: 16px;
+    padding-bottom: calc(64px + 16px);
+  }
+}

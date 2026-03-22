@@ -1,0 +1,740 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+  users       User[]
+}
+
+model Branch {
+  id                      Int                      @id @default(autoincrement())
+  name                    String
+  code                    String                   @unique
+  subdomain               String                   @unique @default("")
+  city                    String
+  state                   String
+  status                  String                   @default("active")
+  // ── Public website controls ───────────────────────────────────────────────
+  isPublic                Boolean                  @default(false)
+  websiteEnabled          Boolean                  @default(false)
+  publicPriority          Int                      @default(0)
+  publicPhone             String?
+  publicEmail             String?
+  publicMapLink           String?
+  shortDescription        String?
+  // ─────────────────────────────────────────────────────────────────────────
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  users                   User[]
+  enquiries               Enquiry[]
+  students                Student[]
+  feePayments             FeePayment[]
+  discountRequests        DiscountRequest[]
+  batches                 Batch[]
+  attendances             Attendance[]
+  trainers                Trainer[]
+  enquiryFollowUps        EnquiryFollowUp[]
+  alerts                  Alert[]
+  examEligibilityRequests ExamEligibilityRequest[]
+  finalExamRegistrations  FinalExamRegistration[]
+  finalExamResults        FinalExamResult[]
+  certificateIssues       CertificateIssue[]
+  interviews              Interview[]
+  pages                   Page[]
+  mediaAssets             MediaAsset[]
+  settings                BranchSettings?
+  teacherAssignments      TeacherBatchAssignment[]
+  contentItems            BranchContentItem[]
+}
+
+model Enquiry {
+  id               Int               @id @default(autoincrement())
+  fullName         String
+  mobile           String
+  email            String?
+  city             String
+  state            String?
+  courseInterest   String
+  source           String?
+  status           String            @default("new")
+  remarks          String?
+  branchId         Int
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  branch           Branch            @relation(fields: [branchId], references: [id])
+  student          Student?
+  discountRequests DiscountRequest[]
+  followUps        EnquiryFollowUp[]
+}
+
+model Student {
+  id                      Int                      @id @default(autoincrement())
+  fullName                String
+  mobile                  String
+  email                   String?
+  city                    String
+  course                  String
+  admissionDate           DateTime                 @default(now())
+  totalFees               Float
+  discount                Float                    @default(0)
+  finalFees               Float
+  branchId                Int
+  enquiryId               Int?                     @unique
+  userId                  Int?                     @unique
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  branch                  Branch                   @relation(fields: [branchId], references: [id])
+  enquiry                 Enquiry?                 @relation(fields: [enquiryId], references: [id])
+  user                    User?                    @relation(fields: [userId], references: [id])
+  feePayments             FeePayment[]
+  discountRequests        DiscountRequest[]
+  batchStudents           BatchStudent[]
+  attendances             Attendance[]
+  examEligibilityRequests ExamEligibilityRequest[]
+  finalExamRegistrations  FinalExamRegistration[]
+  finalExamResults        FinalExamResult[]
+  certificateIssues       CertificateIssue[]
+  interviewApplications   InterviewApplication[]
+  placements              Placement[]
+}
+
+model FeePayment {
+  id                Int      @id @default(autoincrement())
+  studentId         Int
+  branchId          Int
+  amount            Float
+  paymentDate       DateTime @default(now())
+  paymentMode       String
+  referenceNo       String?
+  remarks           String?
+  collectedByUserId Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  student           Student  @relation(fields: [studentId], references: [id])
+  branch            Branch   @relation(fields: [branchId], references: [id])
+  collectedBy       User?    @relation(fields: [collectedByUserId], references: [id])
+}
+
+model Course {
+  id               Int               @id @default(autoincrement())
+  name             String            @unique
+  code             String            @unique
+  description      String?
+  durationMonths   Int
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  feeStructures    FeeStructure[]
+  discountPolicies DiscountPolicy[]
+  discountRequests DiscountRequest[]
+  batches          Batch[]
+  courseContents   CourseContent[]
+}
+
+model FeeStructure {
+  id              Int      @id @default(autoincrement())
+  courseId        Int
+  amount          Float
+  registrationFee Float    @default(0)
+  isActive        Boolean  @default(true)
+  effectiveFrom   DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  course          Course   @relation(fields: [courseId], references: [id])
+}
+
+model DiscountPolicy {
+  id                          Int      @id @default(autoincrement())
+  courseId                    Int?
+  name                        String
+  description                 String?
+  maxDiscountAmount           Float
+  maxDiscountPercent          Float?
+  requiresApprovalAboveAmount Float?
+  isActive                    Boolean  @default(true)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  course                      Course?  @relation(fields: [courseId], references: [id])
+}
+
+model DiscountRequest {
+  id                      Int       @id @default(autoincrement())
+  enquiryId               Int?
+  studentId               Int?
+  branchId                Int
+  requestedByUserId       Int
+  courseId                Int?
+  requestedDiscountAmount Float
+  reason                  String
+  status                  String    @default("pending")
+  decisionRemarks         String?
+  decidedByUserId         Int?
+  decidedAt               DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  enquiry                 Enquiry?  @relation(fields: [enquiryId], references: [id])
+  student                 Student?  @relation(fields: [studentId], references: [id])
+  branch                  Branch    @relation(fields: [branchId], references: [id])
+  requestedBy             User      @relation("RequestedBy", fields: [requestedByUserId], references: [id])
+  decidedBy               User?     @relation("DecidedBy", fields: [decidedByUserId], references: [id])
+  course                  Course?   @relation(fields: [courseId], references: [id])
+}
+
+model Batch {
+  id                     Int                      @id @default(autoincrement())
+  name                   String
+  courseId               Int
+  branchId               Int
+  startDate              DateTime
+  endDate                DateTime?
+  schedule               String?
+  capacity               Int?
+  isActive               Boolean                  @default(true)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  course                 Course                   @relation(fields: [courseId], references: [id])
+  branch                 Branch                   @relation(fields: [branchId], references: [id])
+  batchStudents          BatchStudent[]
+  attendances            Attendance[]
+  batchTrainers          BatchTrainer[]
+  batchSchedules         BatchSchedule[]
+  teacherAssignments     TeacherBatchAssignment[]
+}
+
+model BatchStudent {
+  id        Int      @id @default(autoincrement())
+  batchId   Int
+  studentId Int
+  joinedAt  DateTime @default(now())
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  batch     Batch    @relation(fields: [batchId], references: [id])
+  student   Student  @relation(fields: [studentId], references: [id])
+
+  @@unique([batchId, studentId])
+}
+
+model Attendance {
+  id             Int      @id @default(autoincrement())
+  batchId        Int
+  studentId      Int
+  branchId       Int
+  attendanceDate DateTime
+  status         String
+  remarks        String?
+  markedByUserId Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  batch          Batch    @relation(fields: [batchId], references: [id])
+  student        Student  @relation(fields: [studentId], references: [id])
+  branch         Branch   @relation(fields: [branchId], references: [id])
+  markedBy       User?    @relation(fields: [markedByUserId], references: [id])
+
+  @@unique([batchId, studentId, attendanceDate])
+}
+
+model Trainer {
+  id             Int            @id @default(autoincrement())
+  fullName       String
+  email          String?        @unique
+  mobile         String?
+  specialization String?
+  branchId       Int
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  branch         Branch         @relation(fields: [branchId], references: [id])
+  batchTrainers  BatchTrainer[]
+}
+
+model BatchTrainer {
+  id         Int      @id @default(autoincrement())
+  batchId    Int
+  trainerId  Int
+  isPrimary  Boolean  @default(true)
+  assignedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  batch      Batch    @relation(fields: [batchId], references: [id])
+  trainer    Trainer  @relation(fields: [trainerId], references: [id])
+
+  @@unique([batchId, trainerId])
+}
+
+// Teacher → Batch assignment (enforces teacher isolation)
+model TeacherBatchAssignment {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  batchId    Int
+  branchId   Int
+  assignedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  batch      Batch    @relation(fields: [batchId], references: [id])
+  branch     Branch   @relation(fields: [branchId], references: [id])
+
+  @@unique([userId, batchId])
+}
+
+model BranchSettings {
+  id          Int      @id @default(autoincrement())
+  branchId    Int      @unique
+  logoUrl     String?
+  tagline     String?
+  mapLink     String?
+  socialLinks Json     @default("[]")
+  navItems    Json     @default("[]")
+  theme       Json     @default("{}")
+  updatedAt   DateTime @updatedAt
+  branch      Branch   @relation(fields: [branchId], references: [id])
+}
+
+model BatchSchedule {
+  id        Int      @id @default(autoincrement())
+  batchId   Int
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  room      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  batch     Batch    @relation(fields: [batchId], references: [id])
+
+  @@unique([batchId, dayOfWeek, startTime])
+}
+
+model User {
+  id                             Int                      @id @default(autoincrement())
+  name                           String
+  email                          String                   @unique
+  password                       String
+  roleId                         Int
+  branchId                       Int?
+  createdAt                      DateTime                 @default(now())
+  updatedAt                      DateTime                 @updatedAt
+  role                           Role                     @relation(fields: [roleId], references: [id])
+  branch                         Branch?                  @relation(fields: [branchId], references: [id])
+  feeCollections                 FeePayment[]
+  discountRequestsMade           DiscountRequest[]        @relation("RequestedBy")
+  discountRequestsDecided        DiscountRequest[]        @relation("DecidedBy")
+  attendancesMarked              Attendance[]
+  enquiryFollowUps               EnquiryFollowUp[]
+  alerts                         Alert[]
+  examEligibilityRequestsMade    ExamEligibilityRequest[] @relation("EligibilityRequestedBy")
+  examEligibilityRequestsDecided ExamEligibilityRequest[] @relation("EligibilityDecidedBy")
+  finalExamResultsPublished      FinalExamResult[]
+  certificatesIssued             CertificateIssue[]
+  mediaAssetsCreated             MediaAsset[]
+  teacherBatchAssignments        TeacherBatchAssignment[]
+  studentProfile                 Student?
+}
+
+model Alert {
+  id           Int      @id @default(autoincrement())
+  type         String
+  title        String
+  message      String
+  branchId     Int?
+  userId       Int?
+  entityType   String?
+  entityId     Int?
+  isRead       Boolean  @default(false)
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  branch       Branch?  @relation(fields: [branchId], references: [id])
+  user         User?    @relation(fields: [userId], references: [id])
+}
+
+model ExamEligibilityRequest {
+  id                        Int                    @id @default(autoincrement())
+  studentId                 Int
+  branchId                  Int
+  requestedByUserId         Int
+  attendancePercentSnapshot Float
+  remainingDueSnapshot      Float
+  internalRemarks           String?
+  status                    String                 @default("pending")
+  decisionRemarks           String?
+  decidedByUserId           Int?
+  decidedAt                 DateTime?
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+  student                   Student                @relation(fields: [studentId], references: [id])
+  branch                    Branch                 @relation(fields: [branchId], references: [id])
+  requestedBy               User                   @relation("EligibilityRequestedBy", fields: [requestedByUserId], references: [id])
+  decidedBy                 User?                  @relation("EligibilityDecidedBy", fields: [decidedByUserId], references: [id])
+  finalExamRegistration     FinalExamRegistration?
+}
+
+model FinalExamRegistration {
+  id                   Int                    @id @default(autoincrement())
+  studentId            Int
+  branchId             Int
+  eligibilityRequestId Int                    @unique
+  examDate             DateTime?
+  hallTicketNo         String?                @unique
+  status               String                 @default("registered")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  student              Student                @relation(fields: [studentId], references: [id])
+  branch               Branch                 @relation(fields: [branchId], references: [id])
+  eligibilityRequest   ExamEligibilityRequest @relation(fields: [eligibilityRequestId], references: [id])
+  finalExamResult      FinalExamResult?
+}
+
+model FinalExamResult {
+  id                Int                   @id @default(autoincrement())
+  registrationId    Int                   @unique
+  studentId         Int
+  branchId          Int
+  marksObtained     Float
+  maxMarks          Float
+  resultStatus      String
+  remarks           String?
+  publishedByUserId Int?
+  publishedAt       DateTime              @default(now())
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  registration      FinalExamRegistration @relation(fields: [registrationId], references: [id])
+  student           Student               @relation(fields: [studentId], references: [id])
+  branch            Branch                @relation(fields: [branchId], references: [id])
+  publishedBy       User?                 @relation(fields: [publishedByUserId], references: [id])
+  certificateIssue  CertificateIssue?
+}
+
+model CertificateIssue {
+  id               Int             @id @default(autoincrement())
+  studentId        Int
+  branchId         Int
+  resultId         Int             @unique
+  certificateNo    String          @unique
+  verificationCode String          @unique
+  issueDate        DateTime        @default(now())
+  status           String          @default("issued")
+  pdfPath          String?
+  issuedByUserId   Int?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  student          Student         @relation(fields: [studentId], references: [id])
+  branch           Branch          @relation(fields: [branchId], references: [id])
+  result           FinalExamResult @relation(fields: [resultId], references: [id])
+  issuedBy         User?           @relation(fields: [issuedByUserId], references: [id])
+}
+
+model EnquiryFollowUp {
+  id                Int       @id @default(autoincrement())
+  enquiryId         Int
+  branchId          Int
+  actionType        String
+  remarks           String
+  nextFollowUpDate  DateTime?
+  statusAfterAction String?
+  createdByUserId   Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  enquiry           Enquiry   @relation(fields: [enquiryId], references: [id])
+  branch            Branch    @relation(fields: [branchId], references: [id])
+  createdBy         User?     @relation(fields: [createdByUserId], references: [id])
+}
+
+model Company {
+  id            Int           @id @default(autoincrement())
+  name          String
+  industry      String?
+  contactPerson String?
+  contactEmail  String?
+  contactPhone  String?
+  location      String?
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  jobOpenings   JobOpening[]
+  placements    Placement[]
+}
+
+model JobOpening {
+  id             Int           @id @default(autoincrement())
+  companyId      Int
+  title          String
+  description    String?
+  requiredSkills String?
+  salaryPackage  Float?
+  location       String?
+  status         String        @default("open")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  company        Company       @relation(fields: [companyId], references: [id])
+  interviews     Interview[]
+  placements     Placement[]
+}
+
+model Interview {
+  id            Int                    @id @default(autoincrement())
+  jobOpeningId  Int
+  branchId      Int?
+  interviewDate DateTime
+  mode          String
+  location      String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  jobOpening    JobOpening             @relation(fields: [jobOpeningId], references: [id])
+  branch        Branch?                @relation(fields: [branchId], references: [id])
+  applications  InterviewApplication[]
+}
+
+model InterviewApplication {
+  id          Int       @id @default(autoincrement())
+  interviewId Int
+  studentId   Int
+  status      String    @default("applied")
+  remarks     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  interview   Interview @relation(fields: [interviewId], references: [id])
+  student     Student   @relation(fields: [studentId], references: [id])
+
+  @@unique([interviewId, studentId])
+}
+
+model Placement {
+  id            Int         @id @default(autoincrement())
+  studentId     Int
+  companyId     Int
+  jobOpeningId  Int?
+  salaryPackage Float?
+  joiningDate   DateTime?
+  status        String      @default("offered")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  student       Student     @relation(fields: [studentId], references: [id])
+  company       Company     @relation(fields: [companyId], references: [id])
+  jobOpening    JobOpening? @relation(fields: [jobOpeningId], references: [id])
+}
+
+model CourseContent {
+  id          Int       @id @default(autoincrement())
+  courseId    Int
+  title       String
+  description String?
+  isPublished Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  course      Course    @relation(fields: [courseId], references: [id])
+  sessions    Session[]
+}
+
+model Session {
+  id              Int           @id @default(autoincrement())
+  courseContentId Int
+  title           String
+  order           Int
+  durationMinutes Int?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  courseContent   CourseContent @relation(fields: [courseContentId], references: [id])
+  contentItems    ContentItem[]
+
+  @@unique([courseContentId, order])
+}
+
+model ContentItem {
+  id           Int      @id @default(autoincrement())
+  sessionId    Int
+  type         String
+  title        String
+  fileUrl      String
+  thumbnailUrl String?
+  isPreview    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  session      Session  @relation(fields: [sessionId], references: [id])
+}
+
+model Page {
+  id          Int           @id @default(autoincrement())
+  branchId    Int
+  title       String
+  slug        String
+  pageType    String        @default("custom")
+  isPublished Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  branch      Branch        @relation(fields: [branchId], references: [id])
+  sections    PageSection[]
+
+  @@unique([branchId, slug])
+}
+
+model PageSection {
+  id          Int      @id @default(autoincrement())
+  pageId      Int
+  sectionType String
+  title       String?
+  order       Int
+  configJson  Json
+  isVisible   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  page        Page     @relation(fields: [pageId], references: [id])
+
+  @@unique([pageId, order])
+}
+
+model MediaAsset {
+  id              Int      @id @default(autoincrement())
+  title           String
+  description     String?
+  mediaType       String
+  providerType    String
+  fileUrl         String
+  thumbnailUrl    String?
+  mimeType        String?
+  fileSizeKb      Int?
+  ownerScope      String
+  branchId        Int?
+  tagsJson        Json?
+  isActive        Boolean  @default(true)
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  branch          Branch?  @relation(fields: [branchId], references: [id])
+  createdBy       User?    @relation(fields: [createdByUserId], references: [id])
+}
+
+model BranchContentItem {
+  id             Int      @id @default(autoincrement())
+  branchId       Int
+  collectionType String   // project | activity | news | gallery | award | client
+  title          String
+  slug           String
+  summary        String?
+  content        String?
+  imageUrl       String?
+  metaJson       Json     @default("{}")
+  isPublished    Boolean  @default(false)
+  displayOrder   Int      @default(0)
+  publishedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  branch         Branch   @relation(fields: [branchId], references: [id])
+
+  @@index([branchId, collectionType])
+  @@index([branchId, collectionType, isPublished])
+}
+
+model Testimonial {
+  id           Int      @id @default(autoincrement())
+  name         String
+  designation  String?
+  course       String?
+  message      String
+  photoUrl     String?
+  mediaAssetId Int?
+  rating       Int?     // 1–5
+  category     String   @default("student") // student | parent | partner
+  isPublished  Boolean  @default(false)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ── Head Office Website CMS ───────────────────────────────────────────────────
+
+model SiteSettings {
+  id               Int      @id @default(autoincrement())
+  siteName         String   @default("SNT Education")
+  tagline          String   @default("Empowering Careers")
+  logoText         String   @default("SNT")
+  logoUrl          String?
+  supportEmail     String?
+  supportPhone     String?
+  whatsapp         String?
+  address          String?
+  mapLink          String?
+  workingHours     String?
+  footerDesc       String?
+  footerCopyright  String?
+  primaryColor     String   @default("#6366f1")
+  socialLinks      Json     @default("[]")
+  navItems         Json     @default("[]")
+  announcementBar      Json     @default("{}")
+  seoDefaults          Json     @default("{}")
+  chatbotJson          Json     @default("{}")
+  displayControlJson   Json     @default("{}")
+  updatedAt            DateTime @updatedAt
+  updatedBy            String?
+}
+
+model SitePage {
+  id          Int           @id @default(autoincrement())
+  title       String
+  slug        String        @unique
+  pageType    String        @default("custom")
+  isPublished Boolean       @default(false)
+  seoJson     Json          @default("{}")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  sections    SiteSection[]
+}
+
+model SiteSection {
+  id          Int      @id @default(autoincrement())
+  pageId      Int
+  sectionType String
+  title       String?
+  order       Int
+  configJson  Json     @default("{}")
+  isVisible   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  page        SitePage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, order])
+}
+
+model SiteCollection {
+  id             Int      @id @default(autoincrement())
+  collectionType String   // course|placement|career|internship|corporate|college|testimonial|faq|announcement|branch_location
+  title          String
+  slug           String
+  summary        String?
+  content        String?
+  imageUrl       String?
+  metaJson       Json     @default("{}")
+  isPublished    Boolean  @default(false)
+  isFeatured     Boolean  @default(false)
+  displayOrder   Int      @default(0)
+  publishedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([collectionType])
+  @@index([collectionType, isPublished])
+}
+
+model SiteEnquiry {
+  id           Int      @id @default(autoincrement())
+  enquiryType  String   // contact|partner|internship|corporate|college|career|hire_talent
+  fullName     String
+  email        String?
+  phone        String
+  subject      String?
+  message      String?
+  metaJson     Json     @default("{}")
+  status       String   @default("new")
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([enquiryType])
+  @@index([enquiryType, status])
+}

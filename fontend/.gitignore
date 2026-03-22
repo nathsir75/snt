@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out-tsc/
+
+# Angular cache
+.angular/
+
+# Environment (keep templates, ignore local overrides)
+src/environments/environment.local.ts
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
