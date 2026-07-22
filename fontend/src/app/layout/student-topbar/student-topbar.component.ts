@@ -1,6 +1,6 @@
 import {
   Component, inject, ChangeDetectionStrategy,
-  signal, OnInit, OnDestroy, DestroyRef,
+  signal, OnInit, OnDestroy, DestroyRef, input, effect,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, NavigationEnd, RouterLink } from '@angular/router';
@@ -8,6 +8,7 @@ import { filter } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { AlertService } from '../../features/alerts/alert.service';
 import { STUDENT_NAV } from '../../core/navigation/nav.config';
+import { NavItem } from '../../core/navigation/nav.model';
 
 @Component({
   selector: 'snt-student-topbar',
@@ -65,10 +66,18 @@ export class StudentTopbarComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly user        = this.auth.currentUser;
+  readonly navItems    = input<NavItem[]>(STUDENT_NAV);
   readonly pageTitle   = signal('');
   readonly unreadCount = signal(0);
 
   private pollInterval: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    effect(() => {
+      this.navItems();
+      this.updateTitle(this.router.url);
+    });
+  }
 
   ngOnInit(): void {
     this.updateTitle(this.router.url);
@@ -93,7 +102,7 @@ export class StudentTopbarComponent implements OnInit, OnDestroy {
   }
 
   private updateTitle(url: string): void {
-    const match = STUDENT_NAV.find((item) => url.startsWith(item.route));
+    const match = this.navItems().find((item) => url.startsWith(item.route));
     this.pageTitle.set(match?.label ?? '');
   }
 }

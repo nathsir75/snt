@@ -9,7 +9,7 @@ import { LmsViewerComponent } from './lms-viewer.component';
   imports: [LmsManageComponent, LmsViewerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (isSuperAdmin()) {
+    @if (canManage()) {
       <snt-lms-manage />
     } @else {
       <snt-lms-viewer />
@@ -17,5 +17,9 @@ import { LmsViewerComponent } from './lms-viewer.component';
   `,
 })
 export class LmsComponent {
-  readonly isSuperAdmin = inject(AuthService).isSuperAdmin;
+  private readonly auth = inject(AuthService);
+
+  readonly canManage = () => (
+    this.auth.isSuperAdmin() || this.auth.isBranchAdmin() || this.auth.isTeacher()
+  );
 }

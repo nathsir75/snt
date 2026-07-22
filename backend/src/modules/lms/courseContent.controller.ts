@@ -49,14 +49,14 @@ export const lmsController = {
 
   addContentItem: async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { sessionId, type, title, fileUrl, thumbnailUrl, isPreview } = req.body as {
+      const { sessionId, type, title, fileUrl, convertedPdfUrl, thumbnailUrl, isPreview } = req.body as {
         sessionId: number; type: string; title: string; fileUrl: string;
-        thumbnailUrl?: string; isPreview?: boolean;
+        convertedPdfUrl?: string; thumbnailUrl?: string; isPreview?: boolean;
       };
       if (!sessionId || !type || !title || !fileUrl) {
         res.status(400).json({ error: 'sessionId, type, title and fileUrl are required' }); return;
       }
-      const data = await lmsService.addContentItem({ sessionId, type, title, fileUrl, thumbnailUrl, isPreview });
+      const data = await lmsService.addContentItem({ sessionId, type, title, fileUrl, convertedPdfUrl, thumbnailUrl, isPreview });
       res.status(201).json(data);
     } catch (err) { handleError(res, err); }
   },
@@ -102,6 +102,15 @@ export const lmsController = {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
       const data = await lmsService.deleteContentItem(id);
+      res.json(data);
+    } catch (err) { handleError(res, err); }
+  },
+
+  getSecureContentItemView: async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+      const data = await lmsService.getSecureContentItemView(id, req.user!.role, req.user!);
       res.json(data);
     } catch (err) { handleError(res, err); }
   },

@@ -30,6 +30,20 @@ async function main() {
   });
   console.log('[Seed] Branch:', branch.name, '| subdomain:', branch.subdomain);
 
+  const sndtBranch = await prisma.branch.upsert({
+    where:  { code: 'SNDTWU' },
+    update: { subdomain: 'sndtu', name: 'SNDTWU', city: 'Mumbai', state: 'Maharashtra', status: 'active' },
+    create: {
+      name:      'SNDTWU',
+      code:      'SNDTWU',
+      subdomain: 'sndtu',
+      city:      'Mumbai',
+      state:     'Maharashtra',
+      status:    'active',
+    },
+  });
+  console.log('[Seed] Branch:', sndtBranch.name, '| subdomain:', sndtBranch.subdomain);
+
   const roleMap = Object.fromEntries(roles.map(r => [r.name, r.id]));
 
   // ── Users ──────────────────────────────────────────────────────────────────

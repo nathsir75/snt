@@ -101,15 +101,22 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
           <!-- Quick links -->
           <div class="section-title">Quick Access</div>
           <div class="quick-links">
-            <a routerLink="/student/my-course"     class="quick-link card"><span class="quick-link__icon">📚</span><span class="quick-link__label">My Course</span></a>
-            <a routerLink="/student/my-attendance" class="quick-link card"><span class="quick-link__icon">✅</span><span class="quick-link__label">Attendance</span></a>
-            <a routerLink="/student/schedule"      class="quick-link card"><span class="quick-link__icon">📅</span><span class="quick-link__label">Schedule</span></a>
-            <a routerLink="/student/fees"          class="quick-link card"><span class="quick-link__icon">💰</span><span class="quick-link__label">Fees</span></a>
-            <a routerLink="/student/results"       class="quick-link card"><span class="quick-link__icon">🏆</span><span class="quick-link__label">Results</span></a>
-            <a routerLink="/student/certificates"  class="quick-link card"><span class="quick-link__icon">🎖️</span><span class="quick-link__label">Certificates</span></a>
-            <a routerLink="/student/placements"    class="quick-link card"><span class="quick-link__icon">🚀</span><span class="quick-link__label">Placements</span></a>
-            <a routerLink="/student/alerts"        class="quick-link card"><span class="quick-link__icon">🔔</span><span class="quick-link__label">Alerts</span></a>
-            <a routerLink="/student/profile"       class="quick-link card"><span class="quick-link__icon">👤</span><span class="quick-link__label">Profile</span></a>
+            @if (isSndtwu()) {
+              <a routerLink="/student/live-class"       class="quick-link card"><span class="quick-link__icon">🎥</span><span class="quick-link__label">Live Class</span></a>
+              <a routerLink="/student/recorded-classes" class="quick-link card"><span class="quick-link__icon">▶️</span><span class="quick-link__label">Recorded Classes</span></a>
+              <a routerLink="/student/study-material"   class="quick-link card"><span class="quick-link__icon">📄</span><span class="quick-link__label">Study Material</span></a>
+              <a routerLink="/student/mentor-qa"        class="quick-link card"><span class="quick-link__icon">💬</span><span class="quick-link__label">Mentor Q&A</span></a>
+            } @else {
+              <a routerLink="/student/my-course"     class="quick-link card"><span class="quick-link__icon">📚</span><span class="quick-link__label">My Course</span></a>
+              <a routerLink="/student/my-attendance" class="quick-link card"><span class="quick-link__icon">✅</span><span class="quick-link__label">Attendance</span></a>
+              <a routerLink="/student/schedule"      class="quick-link card"><span class="quick-link__icon">📅</span><span class="quick-link__label">Schedule</span></a>
+              <a routerLink="/student/fees"          class="quick-link card"><span class="quick-link__icon">💰</span><span class="quick-link__label">Fees</span></a>
+              <a routerLink="/student/results"       class="quick-link card"><span class="quick-link__icon">🏆</span><span class="quick-link__label">Results</span></a>
+              <a routerLink="/student/certificates"  class="quick-link card"><span class="quick-link__icon">🎖️</span><span class="quick-link__label">Certificates</span></a>
+              <a routerLink="/student/placements"    class="quick-link card"><span class="quick-link__icon">🚀</span><span class="quick-link__label">Placements</span></a>
+              <a routerLink="/student/alerts"        class="quick-link card"><span class="quick-link__icon">🔔</span><span class="quick-link__label">Alerts</span></a>
+              <a routerLink="/student/profile"       class="quick-link card"><span class="quick-link__icon">👤</span><span class="quick-link__label">Profile</span></a>
+            }
           </div>
         }
 
@@ -188,6 +195,7 @@ export class StudentDashboardComponent implements OnInit {
   readonly state    = signal<DashState>('loading');
   readonly profile  = signal<StudentProfile | null>(null);
   readonly errorMsg = signal<string | null>(null);
+  readonly isSndtwu = computed(() => this.auth.currentUser()?.branch?.code?.toUpperCase() === 'SNDTWU');
 
   readonly initials = computed(() => {
     const name = this.profile()?.fullName ?? '';

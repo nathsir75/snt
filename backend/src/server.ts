@@ -1,10 +1,13 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import cron from 'node-cron';
 import app from './app';
 import { connectDB } from './db/prisma';
+import { aggregateSessionAttendance } from './modules/attendance-tracking/attendanceAggregation.service';
 
 const PORT = process.env.PORT || 3000;
+const HEARTBEAT_ATTENDANCE_CRON = '*/5 * * * *';
 
 async function bootstrap() {
   try {
@@ -12,6 +15,11 @@ async function bootstrap() {
 
     // ✅ Connect DB first
     await connectDB();
+
+    const attendanceCron = cron.schedule(HEARTBEAT_ATTENDANCE_CRON, () => {
+      aggregateSessionAttendance();
+    });
+    console.log('[AttendanceCron] Scheduled heartbeat aggregation every 5 minutes');
 
     // ✅ Start Express server
     const server = app.listen(PORT, () => {
@@ -23,6 +31,7 @@ async function bootstrap() {
     // ✅ Graceful shutdown
     process.on('SIGINT', () => {
       console.log('🛑 SIGINT received. Shutting down...');
+      attendanceCron.stop();
       server.close(() => {
         console.log('✅ Server stopped');
         process.exit(0);
@@ -31,6 +40,7 @@ async function bootstrap() {
 
     process.on('SIGTERM', () => {
       console.log('🛑 SIGTERM received. Shutting down...');
+      attendanceCron.stop();
       server.close(() => {
         console.log('✅ Server stopped');
         process.exit(0);

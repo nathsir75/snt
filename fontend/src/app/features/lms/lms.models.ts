@@ -21,6 +21,7 @@ export interface ContentItem {
   type: ContentItemType;
   title: string;
   fileUrl: string;
+  convertedPdfUrl: string | null;
   thumbnailUrl: string | null;
   isPreview: boolean;
   createdAt: string;
@@ -75,6 +76,7 @@ export interface AddContentItemPayload {
   type: ContentItemType;
   title: string;
   fileUrl: string;
+  convertedPdfUrl?: string | null;
   thumbnailUrl?: string;
   isPreview?: boolean;
 }
@@ -83,5 +85,6 @@ export interface UpdateContentItemPayload {
   type?: ContentItemType;
   title?: string;
   fileUrl?: string;
+  convertedPdfUrl?: string | null;
   isPreview?: boolean;
 }
