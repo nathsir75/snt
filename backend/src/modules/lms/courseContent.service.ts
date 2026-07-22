@@ -5,9 +5,16 @@ import { AuthPayload } from '../../common/types';
 import { getTeacherCourseIds } from '../../common/utils/teacher-scope.util';
 import { assertStudentCourseAccess, assertStudentSessionAccess } from '../../common/utils/student-scope.util';
 import { ROLES } from '../../common/roles';
+import jwt from 'jsonwebtoken';
 
 const VALID_CONTENT_TYPES = ['pdf', 'ppt', 'video', 'lab'] as const;
 type ContentType = (typeof VALID_CONTENT_TYPES)[number];
+
+function resolveConvertedPdfUrl(fileUrl: string, convertedPdfUrl?: string | null): string | null {
+  if (convertedPdfUrl !== undefined) return convertedPdfUrl;
+  if (!fileUrl.startsWith('/uploads/') || !fileUrl.toLowerCase().endsWith('.pptx')) return null;
+  return `${fileUrl.slice(0, -'.pptx'.length)}.pdf`;
+}
 
 // ─── Selects ─────────────────────────────────────────────────────────────────
 
@@ -16,6 +23,7 @@ const CONTENT_ITEM_SELECT = {
   type:         true,
   title:        true,
   fileUrl:      true,
+  convertedPdfUrl: true,
   thumbnailUrl: true,
   isPreview:    true,
   createdAt:    true,
@@ -104,6 +112,7 @@ export const lmsService = {
     type:         string;
     title:        string;
     fileUrl:      string;
+    convertedPdfUrl?: string;
     thumbnailUrl?: string;
     isPreview?:   boolean;
   }) => {
@@ -120,6 +129,7 @@ export const lmsService = {
         type:         data.type,
         title:        data.title,
         fileUrl:      data.fileUrl,
+        convertedPdfUrl: resolveConvertedPdfUrl(data.fileUrl, data.convertedPdfUrl),
         thumbnailUrl: data.thumbnailUrl ?? null,
         isPreview:    data.isPreview    ?? false,
       },
@@ -252,6 +262,7 @@ export const lmsService = {
       type:         string;
       title:        string;
       fileUrl:      string;
+      convertedPdfUrl: string | null;
       thumbnailUrl: string;
       isPreview:    boolean;
     }>,
@@ -265,7 +276,12 @@ export const lmsService = {
 
     const updated = await prisma.contentItem.update({
       where: { id },
-      data,
+      data: {
+        ...data,
+        ...(data.fileUrl !== undefined && data.convertedPdfUrl === undefined
+          ? { convertedPdfUrl: resolveConvertedPdfUrl(data.fileUrl) }
+          : {}),
+      },
       select: { ...CONTENT_ITEM_SELECT, sessionId: true },
     });
 
@@ -281,5 +297,68 @@ export const lmsService = {
     await prisma.contentItem.delete({ where: { id } });
     console.log(`[LmsService] Content item deleted — id=${id}`);
     return { deleted: true, id };
+  },
+
+  getSecureContentItemView: async (id: number, role: string, user: AuthPayload) => {
+    const item = await prisma.contentItem.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        fileUrl: true,
+        convertedPdfUrl: true,
+        session: {
+          select: {
+            id: true,
+            courseContent: {
+              select: {
+                courseId: true,
+                isPublished: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!item) throw new Error('CONTENT_ITEM_NOT_FOUND');
+
+    if (!isSuperAdmin(role) && !item.session.courseContent.isPublished) {
+      throw new Error('COURSE_CONTENT_NOT_FOUND');
+    }
+
+    if (role === ROLES.TEACHER) {
+      const courseIds = await getTeacherCourseIds(user);
+      if (!courseIds || !courseIds.includes(item.session.courseContent.courseId)) {
+        throw new Error('ACCESS_DENIED');
+      }
+    }
+
+    if (role === ROLES.STUDENT) {
+      await assertStudentSessionAccess(user, item.session.courseContent.courseId);
+    }
+
+    const expiresInSeconds = 5 * 60;
+    const token = jwt.sign(
+      {
+        scope: 'content-item:secure-view',
+        contentItemId: item.id,
+        fileUrl: item.convertedPdfUrl ?? item.fileUrl,
+        userId: user.userId,
+      },
+      process.env.JWT_SECRET as string,
+      { expiresIn: expiresInSeconds },
+    );
+
+    const signedUrl = `/api/v1/upload-gateway/secure-view?token=${encodeURIComponent(token)}`;
+
+    return {
+      id: item.id,
+      title: item.title,
+      type: item.type,
+      signedUrl,
+      token,
+      expiresInSeconds,
+    };
   },
 };

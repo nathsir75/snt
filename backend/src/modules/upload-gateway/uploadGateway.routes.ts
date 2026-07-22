@@ -6,6 +6,8 @@ import { uploadGatewayController, upload } from './uploadGateway.controller';
 
 const router = Router();
 
+router.get('/secure-view', uploadGatewayController.secureView);
+
 router.use(authMiddleware, branchScope);
 
 // Static routes before dynamic /:mediaAssetId

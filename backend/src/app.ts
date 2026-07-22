@@ -12,8 +12,11 @@ import feeStructuresRouter from './modules/fee-structures/feeStructure.routes';
 import discountPoliciesRouter from './modules/discount-policies/discountPolicy.routes';
 import discountRequestsRouter from './modules/discount-requests/discountRequest.routes';
 import batchesRouter from './modules/batches/batch.routes';
+import liveSessionsRouter from './modules/live-sessions/liveSession.routes';
 import batchStudentsRouter from './modules/batch-students/batchStudent.routes';
 import attendanceRouter from './modules/attendance/attendance.routes';
+import attendanceTrackingRouter from './modules/attendance-tracking/attendanceTracking.routes';
+import mentorQaRouter from './modules/mentor-qa/mentorQa.routes';
 import trainersRouter from './modules/trainers/trainer.routes';
 import batchTrainersRouter from './modules/batch-trainers/batchTrainer.routes';
 import schedulesRouter from './modules/schedules/schedule.routes';
@@ -31,6 +34,7 @@ import interviewApplicationsRouter from './modules/interview-applications/interv
 import placementsRouter from './modules/placements/placement.routes';
 import kpiDashboardRouter from './modules/kpi-dashboard/kpiDashboard.routes';
 import lmsRouter from './modules/lms/courseContent.routes';
+import contentItemsRouter from './modules/lms/contentItem.routes';
 import studentProfileRouter from './modules/student/student.routes';
 import pagesRouter from './modules/pages/page.routes';
 import mediaLibraryRouter from './modules/media-library/mediaLibrary.routes';
@@ -56,6 +60,14 @@ app.use(express.json());
 // ── Static file serving for local uploads ────────────────────────────────────
 const uploadRoot = resolveUploadRoot();
 console.log(`[App] Serving static uploads from: ${uploadRoot}`);
+app.use('/uploads', (req, res, next) => {
+  const ext = path.extname(req.path).toLowerCase();
+  if (['.pdf', '.ppt', '.pptx'].includes(ext)) {
+    res.status(403).json({ error: 'Use secure-view for PDF/PPT files' });
+    return;
+  }
+  next();
+});
 app.use('/uploads', express.static(uploadRoot));
 
 app.get('/api/v1/health', (_req: Request, res: Response) => {
@@ -74,8 +86,11 @@ app.use('/api/v1/fee-structures', feeStructuresRouter);
 app.use('/api/v1/discount-policies', discountPoliciesRouter);
 app.use('/api/v1/discount-requests', discountRequestsRouter);
 app.use('/api/v1/batches', batchesRouter);
+app.use('/api/v1/live-sessions', liveSessionsRouter);
 app.use('/api/v1/batch-students', batchStudentsRouter);
 app.use('/api/v1/attendance', attendanceRouter);
+app.use('/api/v1/attendance-tracking', attendanceTrackingRouter);
+app.use('/api/v1/mentor-qa', mentorQaRouter);
 app.use('/api/v1/trainers', trainersRouter);
 app.use('/api/v1/batch-trainers', batchTrainersRouter);
 app.use('/api/v1/schedules', schedulesRouter);
@@ -93,6 +108,7 @@ app.use('/api/v1/interview-applications', interviewApplicationsRouter);
 app.use('/api/v1/placements', placementsRouter);
 app.use('/api/v1/kpi-dashboard', kpiDashboardRouter);
 app.use('/api/v1/lms', lmsRouter);
+app.use('/api/v1/content-items', contentItemsRouter);
 app.use('/api/v1/student', studentProfileRouter);
 app.use('/api/v1/pages', pagesRouter);
 app.use('/api/v1/media-library', mediaLibraryRouter);

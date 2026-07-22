@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
-import { roleGuard } from './core/auth/role.guard';
+import { blockSndtwuStudentGuard, roleGuard } from './core/auth/role.guard';
 import { ShellComponent } from './layout/shell/shell.component';
 import { BranchShellComponent } from './layout/branch-shell/branch-shell.component';
 import { TeacherShellComponent } from './layout/teacher-shell/teacher-shell.component';
@@ -151,7 +151,7 @@ export const APP_ROUTES: Routes = [
       { path: 'my-students', loadComponent: () => import('./features/teacher/my-students/teacher-students.component').then((m) => m.TeacherStudentsComponent) },
       { path: 'attendance',  loadComponent: () => import('./features/teacher/attendance/teacher-attendance.component').then((m) => m.TeacherAttendanceComponent) },
       { path: 'schedule',    loadComponent: () => import('./features/teacher/schedule/teacher-schedule.component').then((m) => m.TeacherScheduleComponent) },
-      { path: 'content',     loadComponent: () => import('./features/teacher/content/teacher-content.component').then((m) => m.TeacherContentComponent) },
+      { path: 'content',     loadComponent: () => import('./features/lms/lms.component').then((m) => m.LmsComponent) },
       { path: 'alerts',      loadComponent: () => import('./features/alerts/alerts.component').then((m) => m.AlertsComponent) },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
     ],
@@ -167,12 +167,16 @@ export const APP_ROUTES: Routes = [
       { path: 'my-course',    loadComponent: () => import('./features/student/my-course/student-my-course.component').then((m) => m.StudentMyCourseComponent) },
       { path: 'my-attendance',loadComponent: () => import('./features/student/my-attendance/student-attendance.component').then((m) => m.StudentAttendanceComponent) },
       { path: 'profile',      loadComponent: () => import('./features/student/profile/student-profile.component').then((m) => m.StudentProfileComponent) },
-      { path: 'fees',         loadComponent: () => import('./features/student/fees/student-fees.component').then((m) => m.StudentFeesComponent) },
+      { path: 'fees',         canActivate: [blockSndtwuStudentGuard], loadComponent: () => import('./features/student/fees/student-fees.component').then((m) => m.StudentFeesComponent) },
       { path: 'results',      loadComponent: () => import('./features/student/results/student-results.component').then((m) => m.StudentResultsComponent) },
-      { path: 'certificates', loadComponent: () => import('./features/student/certificates/student-certificates.component').then((m) => m.StudentCertificatesComponent) },
-      { path: 'placements',   loadComponent: () => import('./features/student/placements/student-placements.component').then((m) => m.StudentPlacementsComponent) },
+      { path: 'certificates', canActivate: [blockSndtwuStudentGuard], loadComponent: () => import('./features/student/certificates/student-certificates.component').then((m) => m.StudentCertificatesComponent) },
+      { path: 'placements',   canActivate: [blockSndtwuStudentGuard], loadComponent: () => import('./features/student/placements/student-placements.component').then((m) => m.StudentPlacementsComponent) },
       { path: 'schedule',     loadComponent: () => import('./features/student/schedule/student-schedule.component').then((m) => m.StudentScheduleComponent) },
       { path: 'alerts',       loadComponent: () => import('./features/student/alerts/student-alerts.component').then((m) => m.StudentAlertsComponent) },
+      { path: 'live-class',   loadComponent: () => import('./features/student/live-class/student-live-class.component').then((m) => m.StudentLiveClassComponent) },
+      { path: 'recorded-classes', loadComponent: () => import('./features/student/live-class/student-recorded-classes.component').then((m) => m.StudentRecordedClassesComponent) },
+      { path: 'study-material', loadComponent: () => import('./features/student/live-class/student-study-material.component').then((m) => m.StudentStudyMaterialComponent) },
+      { path: 'mentor-qa',    loadComponent: () => import('./features/student/live-class/student-mentor-qa-page.component').then((m) => m.StudentMentorQaPageComponent) },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
     ],
   },

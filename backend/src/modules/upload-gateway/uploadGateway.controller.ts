@@ -26,6 +26,10 @@ const ERROR_MAP: Record<string, [number, string]> = {
   BRANCH_REQUIRED_FOR_SCOPE:  [400, 'branchId is required when ownerScope is branch'],
   NOT_LOCAL_ASSET:            [400, 'This operation is only available for locally stored assets'],
   PATH_TRAVERSAL_DETECTED:    [400, 'Invalid file path detected'],
+  INVALID_OR_EXPIRED_TOKEN:   [401, 'Invalid or expired secure-view token'],
+  CONTENT_ITEM_NOT_FOUND:     [404, 'Content item not found'],
+  SECURE_VIEW_UNSUPPORTED_TYPE: [415, 'Secure view is available only for PDF/PPT files'],
+  PPTX_CONVERSION_FAILED:     [500, 'Failed to convert PPTX to PDF'],
   FILE_TOO_LARGE:             [413, `File exceeds maximum allowed size`],
 };
 
@@ -69,6 +73,21 @@ export const upload = multer({
 // ─── Controller ───────────────────────────────────────────────────────────────
 
 export const uploadGatewayController = {
+
+  // GET /api/v1/upload-gateway/secure-view?token=...
+  secureView: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const token = typeof req.query.token === 'string' ? req.query.token : '';
+      if (!token) { res.status(400).json({ error: 'token is required' }); return; }
+
+      const file = await uploadGatewayService.resolveSecureView(token);
+      res.setHeader('Content-Type', file.mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${file.filename.replace(/"/g, '')}"`);
+      res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+      res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+      res.sendFile(file.absolutePath);
+    } catch (err) { handleError(res, err); }
+  },
 
   // POST /api/v1/upload-gateway/file
   uploadFile: async (req: AuthRequest, res: Response): Promise<void> => {

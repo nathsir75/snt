@@ -8,7 +8,10 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CurrencyPipe, DecimalPipe, NgTemplateOutlet, PercentPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
+import { HO_NAV } from '../../core/navigation/nav.config';
+import { NavItem } from '../../core/navigation/nav.model';
 import { DashboardService } from './dashboard.service';
 import {
   SuperAdminDashboard,
@@ -21,6 +24,7 @@ import { PageShellComponent } from '../../shared/components/page-shell/page-shel
 import { ChatbotAnalyticsComponent } from '../chatbot/chatbot-analytics.component';
 
 type LoadState = 'loading' | 'error' | 'forbidden' | 'ready';
+type ActivityGroup = { label: string; items: NavItem[] };
 
 @Component({
   selector: 'snt-dashboard',
@@ -34,6 +38,7 @@ type LoadState = 'loading' | 'error' | 'forbidden' | 'ready';
     PercentPipe,
     DecimalPipe,
     NgTemplateOutlet,
+    RouterLink,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -86,6 +91,31 @@ type LoadState = 'loading' | 'error' | 'forbidden' | 'ready';
           <snt-stat-card label="Pending Eligibility" [value]="d.pendingEligibilityRequests" icon="📝" color="warning" />
           <snt-stat-card label="Active Job Openings" [value]="d.activeJobOpenings"          icon="💼" color="info" />
           <snt-stat-card label="Total Courses"       [value]="d.totalCourses"               icon="📚" color="primary" />
+        </div>
+
+        <div class="card mt-6">
+          <div class="section-heading">
+            <div>
+              <p class="card-section-title">All Activities</p>
+              <p class="section-subtitle">Open any Super Admin workspace from one dashboard.</p>
+            </div>
+          </div>
+
+          <div class="activity-groups">
+            @for (group of activityGroups; track group.label) {
+              <section class="activity-group">
+                <h3>{{ group.label }}</h3>
+                <div class="activity-grid">
+                  @for (item of group.items; track item.route) {
+                    <a class="activity-card" [routerLink]="item.route">
+                      <span class="activity-card__icon">{{ item.icon }}</span>
+                      <span class="activity-card__label">{{ item.label }}</span>
+                    </a>
+                  }
+                </div>
+              </section>
+            }
+          </div>
         </div>
 
         @if (d.branches.length) {
@@ -160,6 +190,7 @@ export class DashboardComponent implements OnInit {
   readonly errorMessage = signal<string | null>(null);
   readonly superData    = signal<SuperAdminDashboard | null>(null);
   readonly branchData   = signal<BranchDashboard | null>(null);
+  readonly activityGroups = this.buildActivityGroups();
 
   ngOnInit(): void {
     this.load();
@@ -190,5 +221,17 @@ export class DashboardComponent implements OnInit {
           }
         },
       });
+  }
+
+  private buildActivityGroups(): ActivityGroup[] {
+    const groups = new Map<string, NavItem[]>();
+    for (const item of HO_NAV.filter((navItem) => navItem.route !== '/ho/dashboard')) {
+      const groupName = item.group ?? 'General';
+      const items = groups.get(groupName) ?? [];
+      items.push(item);
+      groups.set(groupName, items);
+    }
+
+    return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
   }
 }

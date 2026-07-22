@@ -7,6 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum LiveSessionType {
+  live
+  recorded
+}
+
+enum PlaybackState {
+  playing
+  paused
+}
+
 model Role {
   id          Int     @id @default(autoincrement())
   name        String  @unique
@@ -104,6 +114,9 @@ model Student {
   certificateIssues       CertificateIssue[]
   interviewApplications   InterviewApplication[]
   placements              Placement[]
+  watchHeartbeats         WatchHeartbeat[]
+  sessionAttendances      SessionAttendance[]
+  mentorQuestions         MentorQuestion[]
 }
 
 model FeePayment {
@@ -207,6 +220,7 @@ model Batch {
   batchTrainers          BatchTrainer[]
   batchSchedules         BatchSchedule[]
   teacherAssignments     TeacherBatchAssignment[]
+  liveSessions           LiveSession[]
 }
 
 model BatchStudent {
@@ -221,6 +235,60 @@ model BatchStudent {
   student   Student  @relation(fields: [studentId], references: [id])
 
   @@unique([batchId, studentId])
+}
+
+model LiveSession {
+  id              Int             @id @default(autoincrement())
+  batchId         Int
+  title           String
+  youtubeVideoId  String
+  sessionType     LiveSessionType
+  scheduledAt     DateTime
+  durationMinutes Int
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  batch           Batch           @relation(fields: [batchId], references: [id])
+  watchHeartbeats WatchHeartbeat[]
+  attendances     SessionAttendance[]
+  mentorQuestions MentorQuestion[]
+}
+
+model WatchHeartbeat {
+  id            Int           @id @default(autoincrement())
+  liveSessionId Int
+  studentId     Int
+  receivedAt    DateTime      @default(now())
+  playbackState PlaybackState
+  liveSession   LiveSession   @relation(fields: [liveSessionId], references: [id])
+  student       Student       @relation(fields: [studentId], references: [id])
+}
+
+model SessionAttendance {
+  id                Int         @id @default(autoincrement())
+  liveSessionId     Int
+  studentId         Int
+  totalWatchSeconds Int
+  isPresent         Boolean
+  markedAt          DateTime    @default(now())
+  liveSession       LiveSession @relation(fields: [liveSessionId], references: [id])
+  student           Student     @relation(fields: [studentId], references: [id])
+
+  @@unique([liveSessionId, studentId])
+}
+
+model MentorQuestion {
+  id               Int         @id @default(autoincrement())
+  liveSessionId    Int
+  studentId        Int
+  questionText     String
+  answerText       String?
+  answeredByUserId Int?
+  createdAt        DateTime    @default(now())
+  answeredAt       DateTime?
+  liveSession      LiveSession @relation(fields: [liveSessionId], references: [id])
+  student          Student     @relation(fields: [studentId], references: [id])
+  answeredBy       User?       @relation("MentorQuestionAnsweredBy", fields: [answeredByUserId], references: [id])
 }
 
 model Attendance {
@@ -334,6 +402,7 @@ model User {
   certificatesIssued             CertificateIssue[]
   mediaAssetsCreated             MediaAsset[]
   teacherBatchAssignments        TeacherBatchAssignment[]
+  mentorQuestionsAnswered        MentorQuestion[]          @relation("MentorQuestionAnsweredBy")
   studentProfile                 Student?
 }
 
@@ -552,8 +621,10 @@ model ContentItem {
   type         String
   title        String
   fileUrl      String
+  convertedPdfUrl String?
   thumbnailUrl String?
   isPreview    Boolean  @default(false)
+  isDownloadable Boolean @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   session      Session  @relation(fields: [sessionId], references: [id])

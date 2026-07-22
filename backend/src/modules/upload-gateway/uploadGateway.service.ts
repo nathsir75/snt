@@ -1,8 +1,10 @@
 import path from 'path';
+import { execFile } from 'child_process';
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
 import { isSuperAdmin } from '../../common/utils/scope.util';
 import { Prisma } from '@prisma/client';
+import jwt from 'jsonwebtoken';
 import {
   UPLOAD_CATEGORIES,
   ALLOWED_EXTENSIONS,
@@ -20,6 +22,16 @@ import {
   assertNoPathTraversal,
 } from '../../common/utils/file.util';
 import { promises as fsp } from 'fs';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
+
+type SecureViewToken = {
+  scope: string;
+  contentItemId: number;
+  fileUrl: string;
+  userId: number;
+};
 
 // ─── Shared MediaAsset select ─────────────────────────────────────────────────
 
@@ -90,9 +102,80 @@ export function validateFileType(
   return category;
 }
 
+async function convertPptxToPdfIfNeeded(absolutePath: string): Promise<string | null> {
+  const ext = path.extname(absolutePath).toLowerCase();
+  if (ext !== '.pptx') return null;
+
+  const outDir = path.dirname(absolutePath);
+  const outputPath = path.join(outDir, `${path.basename(absolutePath, ext)}.pdf`);
+
+  try {
+    await execFileAsync('libreoffice', [
+      '--headless',
+      '--convert-to',
+      'pdf',
+      '--outdir',
+      outDir,
+      absolutePath,
+    ]);
+  } catch (error) {
+    console.error('[UploadGateway] PPTX to PDF conversion failed:', error);
+    throw new Error('PPTX_CONVERSION_FAILED');
+  }
+
+  assertNoPathTraversal(outputPath);
+  await fsp.access(outputPath);
+  console.log(`[UploadGateway] PPTX converted to PDF — ${outputPath}`);
+  return buildFileUrl(outputPath);
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export const uploadGatewayService = {
+
+  // ─── 0. Serve signed PDF/PPT view ──────────────────────────────────────────
+  resolveSecureView: async (token: string) => {
+    let payload: SecureViewToken;
+    try {
+      payload = jwt.verify(token, process.env.JWT_SECRET as string) as SecureViewToken;
+    } catch {
+      throw new Error('INVALID_OR_EXPIRED_TOKEN');
+    }
+
+    if (payload.scope !== 'content-item:secure-view' || !payload.contentItemId || !payload.fileUrl) {
+      throw new Error('INVALID_OR_EXPIRED_TOKEN');
+    }
+
+    const item = await prisma.contentItem.findUnique({
+      where: { id: payload.contentItemId },
+      select: { id: true, title: true, fileUrl: true, convertedPdfUrl: true, type: true },
+    });
+    if (!item) throw new Error('CONTENT_ITEM_NOT_FOUND');
+    if (item.fileUrl !== payload.fileUrl && item.convertedPdfUrl !== payload.fileUrl) {
+      throw new Error('INVALID_OR_EXPIRED_TOKEN');
+    }
+
+    const ext = path.extname(payload.fileUrl).toLowerCase();
+    const allowed = ['.pdf', '.ppt', '.pptx'];
+    if (!allowed.includes(ext)) throw new Error('SECURE_VIEW_UNSUPPORTED_TYPE');
+
+    const absolutePath = resolveAbsoluteFromUrl(payload.fileUrl);
+    assertNoPathTraversal(absolutePath);
+    await fsp.access(absolutePath);
+
+    const mimeType =
+      ext === '.pdf'
+        ? 'application/pdf'
+        : ext === '.ppt'
+          ? 'application/vnd.ms-powerpoint'
+          : 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+    return {
+      absolutePath,
+      filename: path.basename(absolutePath),
+      mimeType,
+    };
+  },
 
   // ─── 1. Upload file + register MediaAsset ───────────────────────────────────
   uploadFile: async (
@@ -141,6 +224,7 @@ export const uploadGatewayService = {
 
     // 7. Build serving URL
     const fileUrl    = buildFileUrl(destPath);
+    const convertedPdfUrl = await convertPptxToPdfIfNeeded(destPath);
     const fileSizeKb = Math.ceil(file.size / 1024);
 
     // 8. Parse tagsJson safely
@@ -175,7 +259,7 @@ export const uploadGatewayService = {
     });
 
     console.log(`[UploadGateway] MediaAsset created — id=${asset.id}, url=${fileUrl}`);
-    return { asset, fileUrl, storedPath: destPath };
+    return { asset, fileUrl, convertedPdfUrl, storedPath: destPath };
   },
 
   // ─── 2. List my uploaded files ──────────────────────────────────────────────
@@ -282,6 +366,7 @@ export const uploadGatewayService = {
     const diskResult = await deleteFileFromDisk(oldAbsPath);
 
     const newFileUrl    = buildFileUrl(destPath);
+    const convertedPdfUrl = await convertPptxToPdfIfNeeded(destPath);
     const newFileSizeKb = Math.ceil(file.size / 1024);
 
     const updated = await prisma.mediaAsset.update({
@@ -296,6 +381,6 @@ export const uploadGatewayService = {
     });
 
     console.log(`[UploadGateway] File replaced — assetId=${mediaAssetId}, oldDiskDeleted=${diskResult.deleted}`);
-    return { asset: updated, fileUrl: newFileUrl };
+    return { asset: updated, fileUrl: newFileUrl, convertedPdfUrl };
   },
 };
