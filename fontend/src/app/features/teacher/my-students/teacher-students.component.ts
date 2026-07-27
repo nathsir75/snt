@@ -10,7 +10,7 @@ import { TeacherService, TeacherBatch, BatchStudent } from '../teacher.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page-header">
-      <div><h1>My Students</h1><p>Students in your assigned batches</p></div>
+      <div><h1>My Students</h1><p>Rosters from your assigned global training batches</p></div>
     </div>
 
     <!-- Batch selector -->
@@ -22,6 +22,7 @@ import { TeacherService, TeacherBatch, BatchStudent } from '../teacher.service';
           (click)="selectBatch(batch.id)"
         >
           {{ batch.name }}
+          <small>{{ batch.branch.name }}</small>
           <span class="batch-tab__count">{{ batch._count.batchStudents }}</span>
         </button>
       }
@@ -42,10 +43,12 @@ import { TeacherService, TeacherBatch, BatchStudent } from '../teacher.service';
             <tr>
               <th>#</th>
               <th>Name</th>
+              <th>Branch</th>
               <th>Mobile</th>
+              <th>Email</th>
               <th>Course</th>
               <th>Status</th>
-              <th>Joined</th>
+              <th>Admission</th>
             </tr>
           </thead>
           <tbody>
@@ -53,10 +56,12 @@ import { TeacherService, TeacherBatch, BatchStudent } from '../teacher.service';
               <tr>
                 <td>{{ i + 1 }}</td>
                 <td>{{ s.student.fullName }}</td>
+                <td>{{ s.student.branch.name }}</td>
                 <td>{{ s.student.mobile }}</td>
+                <td>{{ s.student.email || '—' }}</td>
                 <td>{{ s.student.course }}</td>
                 <td><span class="badge" [class.badge-success]="s.status === 'active'" [class.badge-neutral]="s.status !== 'active'">{{ s.status }}</span></td>
-                <td>{{ s.joinedAt | slice:0:10 }}</td>
+                <td>{{ s.student.admissionDate | slice:0:10 }}</td>
               </tr>
             }
           </tbody>
@@ -89,6 +94,7 @@ import { TeacherService, TeacherBatch, BatchStudent } from '../teacher.service';
       padding: 1px 6px;
       font-size: var(--font-size-xs);
     }
+    .batch-tab small { color: inherit; opacity: .75; font-size: var(--font-size-xs); }
   `],
 })
 export class TeacherStudentsComponent implements OnInit {

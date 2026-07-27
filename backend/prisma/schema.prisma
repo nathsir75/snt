@@ -209,6 +209,8 @@ model Batch {
   startDate              DateTime
   endDate                DateTime?
   schedule               String?
+  teamsJoinUrl           String?
+  isCentralProgramme     Boolean                  @default(false)
   capacity               Int?
   isActive               Boolean                  @default(true)
   createdAt              DateTime                 @default(now())
@@ -316,6 +318,7 @@ model Trainer {
   email          String?        @unique
   mobile         String?
   specialization String?
+  trainerType    String         @default("local")
   branchId       Int
   isActive       Boolean        @default(true)
   createdAt      DateTime       @default(now())

@@ -8,6 +8,8 @@ const BATCH_SELECT = {
   id: true,
   name: true,
   schedule: true,
+  teamsJoinUrl: true,
+  isCentralProgramme: true,
   capacity: true,
   startDate: true,
   endDate: true,
@@ -36,6 +38,8 @@ export const batchService = {
       startDate: string;
       endDate?: string;
       schedule?: string;
+      teamsJoinUrl?: string;
+      isCentralProgramme?: boolean;
       capacity?: number;
     },
   ) => {
@@ -56,6 +60,8 @@ export const batchService = {
         startDate: new Date(data.startDate),
         endDate:   data.endDate ? new Date(data.endDate) : null,
         schedule:  data.schedule ?? null,
+        teamsJoinUrl: data.teamsJoinUrl ?? null,
+        isCentralProgramme: data.isCentralProgramme ?? false,
         capacity:  data.capacity ?? null,
       },
       select: BATCH_SELECT,
@@ -71,7 +77,7 @@ export const batchService = {
       const batchIds = await getTeacherBatchIds(user);
       console.log(`[BatchService] Teacher fetch — userId=${user.userId}, batchIds=[${batchIds?.join(', ')}]`);
       return prisma.batch.findMany({
-        where: { id: { in: batchIds ?? [] }, branchId: user.branchId as number },
+        where: { id: { in: batchIds ?? [] } },
         orderBy: { startDate: 'desc' },
         select: BATCH_SELECT,
       });
@@ -88,8 +94,10 @@ export const batchService = {
   getBatchById: async (id: number, user: AuthPayload) => {
     const batch = await prisma.batch.findUnique({ where: { id }, select: BATCH_SELECT });
     if (!batch) throw new Error('BATCH_NOT_FOUND');
-    assertBranchAccess(user, batch.branch.id);
     await assertTeacherBatchAccess(user, id);
+    if (user.role !== ROLES.TEACHER || !batch.isCentralProgramme) {
+      assertBranchAccess(user, batch.branch.id);
+    }
     return batch;
   },
 
@@ -99,7 +107,7 @@ export const batchService = {
     if (!batchIds) throw new Error('ACCESS_DENIED');
 
     const batches = await prisma.batch.findMany({
-      where: { id: { in: batchIds }, branchId: user.branchId as number },
+      where: { id: { in: batchIds } },
       select: {
         ...BATCH_SELECT,
         batchStudents: { select: { id: true, status: true } },
@@ -119,21 +127,35 @@ export const batchService = {
     data: {
       name?: string;
       schedule?: string;
+      teamsJoinUrl?: string | null;
+      isCentralProgramme?: boolean;
       capacity?: number;
+      startDate?: string;
       endDate?: string;
       isActive?: boolean;
     },
   ) => {
     const existing = await prisma.batch.findUnique({ where: { id } });
     if (!existing) throw new Error('BATCH_NOT_FOUND');
-    assertBranchAccess(user, existing.branchId);
+    if (user.role !== ROLES.TEACHER || !existing.isCentralProgramme) {
+      assertBranchAccess(user, existing.branchId);
+    }
+
+    const nextStartDate = data.startDate ? new Date(data.startDate) : existing.startDate;
+    const nextEndDate = data.endDate ? new Date(data.endDate) : existing.endDate;
+    if (nextEndDate && nextEndDate < nextStartDate) {
+      throw new Error('INVALID_DATE_RANGE');
+    }
 
     const updated = await prisma.batch.update({
       where: { id },
       data: {
         ...(data.name     !== undefined && { name: data.name }),
         ...(data.schedule !== undefined && { schedule: data.schedule }),
+        ...(data.teamsJoinUrl !== undefined && { teamsJoinUrl: data.teamsJoinUrl }),
+        ...(data.isCentralProgramme !== undefined && { isCentralProgramme: data.isCentralProgramme }),
         ...(data.capacity !== undefined && { capacity: data.capacity }),
+        ...(data.startDate !== undefined && { startDate: nextStartDate }),
         ...(data.endDate  !== undefined && { endDate: new Date(data.endDate) }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),
       },

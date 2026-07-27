@@ -17,12 +17,12 @@ function handleError(res: Response, error: any): void {
 export const trainerController = {
   createTrainer: async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { fullName, email, mobile, specialization, branchId } = req.body;
+      const { fullName, email, mobile, specialization, branchId, trainerType } = req.body;
       if (!fullName || !branchId) {
         res.status(400).json({ error: 'fullName and branchId are required' });
         return;
       }
-      const trainer = await trainerService.createTrainer(req.user!, { fullName, email, mobile, specialization, branchId });
+      const trainer = await trainerService.createTrainer(req.user!, { fullName, email, mobile, specialization, branchId, trainerType });
       res.status(201).json(trainer);
     } catch (error: any) {
       console.error('[Trainers] createTrainer error:', error.message);
@@ -56,8 +56,8 @@ export const trainerController = {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) { res.status(400).json({ error: 'Invalid trainer id' }); return; }
-      const { fullName, email, mobile, specialization, isActive } = req.body;
-      const trainer = await trainerService.updateTrainer(id, req.user!, { fullName, email, mobile, specialization, isActive });
+      const { fullName, email, mobile, specialization, trainerType, isActive } = req.body;
+      const trainer = await trainerService.updateTrainer(id, req.user!, { fullName, email, mobile, specialization, trainerType, isActive });
       res.json(trainer);
     } catch (error: any) {
       console.error('[Trainers] updateTrainer error:', error.message);

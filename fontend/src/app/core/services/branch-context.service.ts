@@ -42,6 +42,8 @@ export class BranchContextService {
     const mainDomain = environment.mainDomain ?? 'snteducation.com';
     // e.g. "mumbai.snteducation.com" → ["mumbai", "snteducation", "com"]
     const parts = host.split('.');
+    // Platform infrastructure subdomains are not franchise branch sites.
+    if (['app', 'api', 'www'].includes(parts[0].toLowerCase())) return null;
     if (parts.length >= 3 && host.endsWith(mainDomain)) {
       return parts[0].toLowerCase();
     }

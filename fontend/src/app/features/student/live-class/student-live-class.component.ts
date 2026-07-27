@@ -23,6 +23,17 @@ import { LiveClassService, LiveSession, StudentLiveSessionsResponse } from '../.
         <div class="state card">Loading live class...</div>
       } @else if (error()) {
         <div class="state card state-error">{{ error() }}</div>
+      } @else if (teamsMeeting()) {
+        <div class="teams-card card">
+          <div>
+            <span class="teams-eyebrow">Microsoft Teams live class</span>
+            <h2>{{ teamsMeeting()!.batchName }}</h2>
+            <p>Today's scheduled class: {{ teamsMeeting()!.startTime }}–{{ teamsMeeting()!.endTime }} IST</p>
+          </div>
+          <a class="btn btn-primary teams-join" [href]="teamsMeeting()!.joinUrl" target="_blank" rel="noopener noreferrer">
+            Join Live Class ↗
+          </a>
+        </div>
       } @else if (!currentSession()) {
         <div class="state card">No live class is active right now.</div>
       } @else {
@@ -52,6 +63,12 @@ import { LiveClassService, LiveSession, StudentLiveSessionsResponse } from '../.
     .page-head p { margin: 4px 0 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
     .state { padding: 28px; text-align: center; color: var(--color-text-muted); }
     .state-error { color: var(--color-danger); }
+    .teams-card { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 22px; }
+    .teams-eyebrow { color: #635bff; font-size: var(--font-size-xs); font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+    .teams-card h2 { margin: 7px 0 4px; font-size: var(--font-size-lg); }
+    .teams-card p { margin: 0; color: var(--color-text-muted); }
+    .teams-join { white-space: nowrap; }
+    @media (max-width: 600px) { .teams-card { align-items: flex-start; flex-direction: column; } }
     .live-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); gap: 16px; align-items: start; }
     .player-column { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
     .session-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; }
@@ -67,12 +84,14 @@ export class StudentLiveClassComponent implements OnInit {
   readonly error = signal<string | null>(null);
   readonly sessions = signal<StudentLiveSessionsResponse | null>(null);
   readonly currentSession = signal<LiveSession | null>(null);
+  readonly teamsMeeting = signal<StudentLiveSessionsResponse['currentTeamsMeeting']>(null);
 
   ngOnInit(): void {
     this.liveClassSvc.getStudentSessions().subscribe({
       next: (data) => {
         this.sessions.set(data);
         this.currentSession.set(data.currentLiveSession);
+        this.teamsMeeting.set(data.currentTeamsMeeting);
         this.loading.set(false);
       },
       error: () => {

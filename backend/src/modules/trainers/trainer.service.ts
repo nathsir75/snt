@@ -8,6 +8,7 @@ const TRAINER_SELECT = {
   email: true,
   mobile: true,
   specialization: true,
+  trainerType: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,
@@ -24,7 +25,7 @@ function assertBranchAccess(user: AuthPayload, branchId: number): void {
 export const trainerService = {
   createTrainer: async (
     user: AuthPayload,
-    data: { fullName: string; email?: string; mobile?: string; specialization?: string; branchId: number },
+    data: { fullName: string; email?: string; mobile?: string; specialization?: string; branchId: number; trainerType?: string },
   ) => {
     assertBranchAccess(user, data.branchId);
 
@@ -42,6 +43,7 @@ export const trainerService = {
         email:          data.email ?? null,
         mobile:         data.mobile ?? null,
         specialization: data.specialization ?? null,
+        trainerType:    data.trainerType ?? 'local',
         branchId:       data.branchId,
       },
       select: TRAINER_SELECT,
@@ -70,7 +72,7 @@ export const trainerService = {
   updateTrainer: async (
     id: number,
     user: AuthPayload,
-    data: { fullName?: string; email?: string; mobile?: string; specialization?: string; isActive?: boolean },
+    data: { fullName?: string; email?: string; mobile?: string; specialization?: string; trainerType?: string; isActive?: boolean },
   ) => {
     const existing = await prisma.trainer.findUnique({ where: { id } });
     if (!existing) throw new Error('TRAINER_NOT_FOUND');
@@ -88,6 +90,7 @@ export const trainerService = {
         ...(data.email          !== undefined && { email: data.email }),
         ...(data.mobile         !== undefined && { mobile: data.mobile }),
         ...(data.specialization !== undefined && { specialization: data.specialization }),
+        ...(data.trainerType    !== undefined && { trainerType: data.trainerType }),
         ...(data.isActive       !== undefined && { isActive: data.isActive }),
       },
       select: TRAINER_SELECT,

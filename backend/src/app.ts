@@ -19,6 +19,7 @@ import attendanceTrackingRouter from './modules/attendance-tracking/attendanceTr
 import mentorQaRouter from './modules/mentor-qa/mentorQa.routes';
 import trainersRouter from './modules/trainers/trainer.routes';
 import batchTrainersRouter from './modules/batch-trainers/batchTrainer.routes';
+import trainerPortalRouter from './modules/trainer-portal/trainerPortal.routes';
 import schedulesRouter from './modules/schedules/schedule.routes';
 import reportsRouter from './modules/reports/report.routes';
 import enquiryFollowUpsRouter from './modules/enquiry-followups/enquiryFollowUp.routes';
@@ -93,6 +94,7 @@ app.use('/api/v1/attendance-tracking', attendanceTrackingRouter);
 app.use('/api/v1/mentor-qa', mentorQaRouter);
 app.use('/api/v1/trainers', trainersRouter);
 app.use('/api/v1/batch-trainers', batchTrainersRouter);
+app.use('/api/v1/trainer-portal', trainerPortalRouter);
 app.use('/api/v1/schedules', schedulesRouter);
 app.use('/api/v1/reports', reportsRouter);
 app.use('/api/v1/enquiry-followups', enquiryFollowUpsRouter);

@@ -1,0 +1,1 @@
+ALTER TABLE "Batch" ADD COLUMN "isCentralProgramme" BOOLEAN NOT NULL DEFAULT false;

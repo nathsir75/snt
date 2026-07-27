@@ -11,6 +11,7 @@ export const HO_NAV: NavItem[] = [
 
   { label: 'Enquiries',              icon: '📋', route: '/ho/enquiries',              group: 'CRM',          badgeKey: 'newEnquiries',     badgeColor: 'info' },
   { label: 'Students',               icon: '🎓', route: '/ho/students',               group: 'CRM' },
+  { label: 'Student Import',          icon: '📥', route: '/ho/student-import',         group: 'CRM' },
 
   { label: 'Courses',                icon: '📚', route: '/ho/courses',                group: 'Academic' },
   { label: 'LMS',                    icon: '🖥️', route: '/ho/lms',                    group: 'Academic' },
@@ -95,9 +96,7 @@ export const TEACHER_NAV: NavItem[] = [
   { label: 'Dashboard',    icon: '🏠', route: '/teacher/dashboard',    group: 'Core' },
   { label: 'My Batches',   icon: '👥', route: '/teacher/my-batches',   group: 'Teaching' },
   { label: 'My Students',  icon: '🎓', route: '/teacher/my-students',  group: 'Teaching' },
-  { label: 'Attendance',   icon: '✅', route: '/teacher/attendance',   group: 'Teaching' },
   { label: 'Schedule',     icon: '📅', route: '/teacher/schedule',     group: 'Teaching' },
-  { label: 'Content',      icon: '🖥️', route: '/teacher/content',      group: 'Teaching' },
   { label: 'Alerts',       icon: '🔔', route: '/teacher/alerts',       group: 'Notifications' },
 ];
 

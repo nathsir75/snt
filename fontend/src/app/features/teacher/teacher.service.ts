@@ -1,28 +1,38 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { ApiService } from '../../core/services/api.service';
 
 export interface TeacherBatch {
   id: number;
   name: string;
+  teamsJoinUrl: string | null;
   schedule: string | null;
   capacity: number | null;
   startDate: string;
   endDate: string | null;
   isActive: boolean;
   course: { id: number; name: string; code: string };
-  branch: { id: number; name: string; city: string };
+  branch: { id: number; name: string; code: string; city: string };
   _count: { batchStudents: number };
   activeStudents?: number;
-  batchSchedules?: { id: number; dayOfWeek: number; startTime: string; endTime: string }[];
+  batchSchedules: BatchSchedule[];
+  batchStudents?: BatchStudent[];
 }
 
 export interface BatchStudent {
   id: number;
   joinedAt: string;
   status: string;
-  student: { id: number; fullName: string; mobile: string; course: string };
-  batch: { id: number; name: string };
+  student: {
+    id: number;
+    fullName: string;
+    mobile: string;
+    email: string | null;
+    course: string;
+    admissionDate: string;
+    branch: { id: number; name: string; city: string };
+  };
 }
 
 export interface AttendanceEntry {
@@ -38,7 +48,20 @@ export interface BatchSchedule {
   startTime: string;
   endTime: string;
   room: string | null;
-  batch: { id: number; name: string; branch: { id: number; name: string } };
+}
+
+export interface TrainerPortalSummary {
+  account: { id: number; name: string; email: string };
+  trainer: {
+    id: number;
+    fullName: string;
+    email: string | null;
+    mobile: string | null;
+    specialization: string | null;
+    trainerType: 'global';
+    isActive: boolean;
+  };
+  batches: TeacherBatch[];
 }
 
 export interface CourseContent {
@@ -63,14 +86,17 @@ export class TeacherService {
   private readonly api = inject(ApiService);
 
   // ── Batches ────────────────────────────────────────────────────────────────
-  // All teacher batch fetches use /teacher-summary — assignment-scoped with student/schedule counts
+  getSummary(): Observable<TrainerPortalSummary> {
+    return this.api.get<TrainerPortalSummary>('/trainer-portal/summary');
+  }
+
   getMyBatches(): Observable<TeacherBatch[]> {
-    return this.api.get<TeacherBatch[]>('/batches/teacher-summary');
+    return this.getSummary().pipe(map((summary) => summary.batches));
   }
 
   // ── Students ───────────────────────────────────────────────────────────────
   getStudentsByBatch(batchId: number): Observable<BatchStudent[]> {
-    return this.api.get<BatchStudent[]>(`/batch-students/batch/${batchId}`);
+    return this.api.get<BatchStudent[]>(`/trainer-portal/batches/${batchId}/students`);
   }
 
   // ── Attendance ─────────────────────────────────────────────────────────────
@@ -89,7 +115,9 @@ export class TeacherService {
 
   // ── Schedule ───────────────────────────────────────────────────────────────
   getScheduleByBatch(batchId: number): Observable<BatchSchedule[]> {
-    return this.api.get<BatchSchedule[]>(`/schedules/batch/${batchId}`);
+    return this.getMyBatches().pipe(
+      map((batches) => batches.find((batch) => batch.id === batchId)?.batchSchedules ?? [])
+    );
   }
 
   // ── LMS / Content ──────────────────────────────────────────────────────────

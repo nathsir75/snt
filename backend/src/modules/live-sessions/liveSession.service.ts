@@ -28,6 +28,22 @@ const LIVE_SESSION_SELECT = {
   },
 };
 
+function getIndiaTimeParts(date = new Date()): { dayOfWeek: number; time: string; date: string } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+    weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date).reduce<Record<string, string>>((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {});
+  const days: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    dayOfWeek: days[parts.weekday],
+    time: `${parts.hour}:${parts.minute}`,
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+  };
+}
+
 type CreateLiveSessionData = {
   batchId: number;
   title: string;
@@ -45,15 +61,17 @@ function assertBranchAccess(user: AuthPayload, branchId: number): void {
   }
 }
 
-async function assertBatchAccess(user: AuthPayload, batchId: number): Promise<{ id: number; branchId: number }> {
+async function assertBatchAccess(user: AuthPayload, batchId: number): Promise<{ id: number; branchId: number; isCentralProgramme: boolean }> {
   const batch = await prisma.batch.findUnique({
     where: { id: batchId },
-    select: { id: true, branchId: true },
+    select: { id: true, branchId: true, isCentralProgramme: true },
   });
   if (!batch) throw new Error('BATCH_NOT_FOUND');
 
-  assertBranchAccess(user, batch.branchId);
   await assertTeacherBatchAccess(user, batchId);
+  if (user.role !== ROLES.TEACHER || !batch.isCentralProgramme) {
+    assertBranchAccess(user, batch.branchId);
+  }
 
   return batch;
 }
@@ -96,9 +114,14 @@ export const liveSessionService = {
     });
     if (!liveSession) throw new Error('LIVE_SESSION_NOT_FOUND');
 
-    assertBranchAccess(user, liveSession.batch.branchId);
     if (user.role === ROLES.TEACHER) {
       await assertTeacherBatchAccess(user, liveSession.batchId);
+    }
+    const centralBatch = await prisma.batch.findUnique({
+      where: { id: liveSession.batchId }, select: { isCentralProgramme: true },
+    });
+    if (user.role !== ROLES.TEACHER || !centralBatch?.isCentralProgramme) {
+      assertBranchAccess(user, liveSession.batch.branchId);
     }
 
     return liveSession;
@@ -113,7 +136,10 @@ export const liveSessionService = {
       where: {
         studentId: record.studentId,
         status: 'active',
-        batch: { branchId: record.branchId, isActive: true },
+        batch: {
+          isActive: true,
+          OR: [{ branchId: record.branchId }, { isCentralProgramme: true }],
+        },
       },
       orderBy: { joinedAt: 'desc' },
       select: {
@@ -122,6 +148,10 @@ export const liveSessionService = {
           select: {
             id: true,
             name: true,
+            startDate: true,
+            endDate: true,
+            teamsJoinUrl: true,
+            batchSchedules: { select: { dayOfWeek: true, startTime: true, endTime: true } },
             course: { select: { id: true, name: true, code: true } },
             branch: { select: { id: true, name: true, city: true } },
           },
@@ -135,6 +165,7 @@ export const liveSessionService = {
     }
 
     const now = new Date();
+    const indiaNow = getIndiaTimeParts(now);
     const activeLiveSessions = await prisma.liveSession.findMany({
       where: {
         batchId: batchStudent.batchId,
@@ -167,9 +198,26 @@ export const liveSessionService = {
       `[LiveSessionService] Student sessions fetched — studentId=${record.studentId}, batchId=${batchStudent.batchId}, recorded=${recordedSessions.length}`,
     );
 
+    const batchStart = batchStudent.batch.startDate.toISOString().slice(0, 10);
+    const batchEnd = batchStudent.batch.endDate?.toISOString().slice(0, 10) ?? null;
+    const activeSchedule = batchStudent.batch.batchSchedules.find((slot) =>
+      slot.dayOfWeek === indiaNow.dayOfWeek && slot.startTime <= indiaNow.time && indiaNow.time < slot.endTime,
+    );
+    const currentTeamsMeeting = batchStudent.batch.teamsJoinUrl && activeSchedule &&
+      indiaNow.date >= batchStart && (!batchEnd || indiaNow.date <= batchEnd)
+      ? {
+          batchId: batchStudent.batch.id,
+          batchName: batchStudent.batch.name,
+          joinUrl: batchStudent.batch.teamsJoinUrl,
+          startTime: activeSchedule.startTime,
+          endTime: activeSchedule.endTime,
+        }
+      : null;
+
     return {
       batch: batchStudent.batch,
       currentLiveSession,
+      currentTeamsMeeting,
       recordedSessions,
     };
   },

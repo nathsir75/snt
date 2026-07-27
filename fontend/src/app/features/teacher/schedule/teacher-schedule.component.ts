@@ -10,7 +10,7 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page-header">
-      <div><h1>Schedule</h1><p>Your weekly class timetable</p></div>
+      <div><h1>Schedule</h1><p>Your mapped weekly timetable across assigned global batches</p></div>
     </div>
 
     <!-- Batch tabs -->
@@ -20,7 +20,10 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
           class="batch-tab"
           [class.batch-tab--active]="selectedBatchId() === batch.id"
           (click)="selectBatch(batch.id)"
-        >{{ batch.name }}</button>
+        >
+          {{ batch.name }}
+          <small>{{ batch.branch.name }}</small>
+        </button>
       }
     </div>
 
@@ -35,7 +38,7 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
             <div class="schedule-day__name">{{ day }}</div>
             @for (slot of slotsForDay(day); track slot.id) {
               <div class="schedule-slot">
-                <span class="schedule-slot__time">{{ slot.startTime }} – {{ slot.endTime }}</span>
+                <span class="schedule-slot__time">{{ formatScheduleTime(slot) }}</span>
                 @if (slot.room) {
                   <span class="schedule-slot__room text-muted text-sm">Room: {{ slot.room }}</span>
                 }
@@ -58,9 +61,14 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
       font-weight: 500;
       cursor: pointer;
       transition: all .15s;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
     }
     .batch-tab:hover { border-color: var(--layout-accent, #0d9488); }
     .batch-tab--active { background: var(--layout-accent, #0d9488); color: #fff; border-color: var(--layout-accent, #0d9488); }
+    .batch-tab small { color: inherit; opacity: .75; font-size: var(--font-size-xs); }
     .schedule-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
     .schedule-day__name { font-weight: 700; font-size: var(--font-size-sm); color: var(--layout-accent, #0d9488); margin-bottom: 10px; text-transform: uppercase; letter-spacing: .5px; }
     .schedule-slot { padding: 8px 0; border-top: 1px solid var(--color-border); }
@@ -104,5 +112,21 @@ export class TeacherScheduleComponent implements OnInit {
 
   slotsForDay(day: string): BatchSchedule[] {
     return this.schedules().filter((s) => s.dayName === day);
+  }
+
+  formatScheduleTime(slot: BatchSchedule): string {
+    const start = this.formatTime(slot.startTime);
+    const end = this.formatTime(slot.endTime);
+    const compactStart = start.period === end.period ? start.time : `${start.time} ${start.period}`;
+    return `${compactStart}–${end.time} ${end.period}`;
+  }
+
+  private formatTime(value: string): { time: string; period: 'AM' | 'PM' } {
+    const [hourRaw, minuteRaw = '00'] = value.split(':');
+    const hour24 = Number(hourRaw);
+    const minute = Number(minuteRaw);
+    const period = hour24 >= 12 ? 'PM' : 'AM';
+    const hour12 = hour24 % 12 || 12;
+    return { time: `${hour12}:${String(minute).padStart(2, '0')}`, period };
   }
 }

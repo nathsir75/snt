@@ -12,7 +12,7 @@ const BATCH_STUDENT_SELECT = {
   createdAt: true,
   updatedAt: true,
   student: { select: { id: true, fullName: true, mobile: true, course: true, branch: { select: { id: true, name: true } } } },
-  batch:   { select: { id: true, name: true, schedule: true, branch: { select: { id: true, name: true } } } },
+  batch:   { select: { id: true, name: true, schedule: true, isCentralProgramme: true, branch: { select: { id: true, name: true } } } },
 };
 
 function assertBranchAccess(user: AuthPayload, branchId: number, context: string): void {
@@ -32,9 +32,13 @@ export const batchStudentService = {
     if (!batch)   throw new Error('BATCH_NOT_FOUND');
     if (!student) throw new Error('STUDENT_NOT_FOUND');
 
-    assertBranchAccess(user, batch.branchId, `batch id=${data.batchId}`);
+    if (!batch.isCentralProgramme) {
+      assertBranchAccess(user, batch.branchId, `batch id=${data.batchId}`);
+    } else if (!isSuperAdmin(user.role)) {
+      throw new Error('ACCESS_DENIED');
+    }
 
-    if (batch.branchId !== student.branchId) {
+    if (!batch.isCentralProgramme && batch.branchId !== student.branchId) {
       console.warn(`[BatchStudentService] Cross-branch assignment denied — batch branchId=${batch.branchId}, student branchId=${student.branchId}`);
       throw new Error('BRANCH_MISMATCH');
     }
@@ -68,7 +72,11 @@ export const batchStudentService = {
   getStudentsByBatch: async (batchId: number, user: AuthPayload) => {
     const batch = await prisma.batch.findUnique({ where: { id: batchId } });
     if (!batch) throw new Error('BATCH_NOT_FOUND');
-    assertBranchAccess(user, batch.branchId, `batch id=${batchId}`);
+    if (!batch.isCentralProgramme) {
+      assertBranchAccess(user, batch.branchId, `batch id=${batchId}`);
+    } else if (!isSuperAdmin(user.role) && user.role !== 'teacher') {
+      throw new Error('ACCESS_DENIED');
+    }
     // Teacher must be assigned to this batch
     await assertTeacherBatchAccess(user, batchId);
 
@@ -99,7 +107,11 @@ export const batchStudentService = {
       include: { batch: true },
     });
     if (!record) throw new Error('ASSIGNMENT_NOT_FOUND');
-    assertBranchAccess(user, record.batch.branchId, `batchStudent id=${id}`);
+    if (!record.batch.isCentralProgramme) {
+      assertBranchAccess(user, record.batch.branchId, `batchStudent id=${id}`);
+    } else if (!isSuperAdmin(user.role)) {
+      throw new Error('ACCESS_DENIED');
+    }
 
     const updated = await prisma.batchStudent.update({
       where: { id },

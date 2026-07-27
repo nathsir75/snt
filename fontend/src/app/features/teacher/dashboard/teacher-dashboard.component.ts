@@ -1,7 +1,7 @@
 import { Component, inject, signal, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { SlicePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { TeacherService, TeacherBatch } from '../teacher.service';
+import { TeacherService, TeacherBatch, BatchSchedule } from '../teacher.service';
 import { AuthService } from '../../../core/auth/auth.service';
 
 @Component({
@@ -24,7 +24,7 @@ import { AuthService } from '../../../core/auth/auth.service';
       <div class="teacher-dashboard__stats">
         <div class="stat-card">
           <span class="stat-card__value">{{ batches().length }}</span>
-          <span class="stat-card__label">Assigned Batches</span>
+          <span class="stat-card__label">Assigned Global Batches</span>
         </div>
         <div class="stat-card">
           <span class="stat-card__value">{{ totalStudents() }}</span>
@@ -49,7 +49,7 @@ import { AuthService } from '../../../core/auth/auth.service';
       } @else {
 
         <!-- Batch cards -->
-        <div class="teacher-dashboard__section-title">Your Batches</div>
+        <div class="teacher-dashboard__section-title">Global Trainer Dashboard</div>
         <div class="teacher-dashboard__batches">
           @for (batch of batches(); track batch.id) {
             <div class="batch-card card">
@@ -57,6 +57,7 @@ import { AuthService } from '../../../core/auth/auth.service';
                 <div>
                   <div class="batch-card__name">{{ batch.name }}</div>
                   <div class="batch-card__course text-muted text-sm">{{ batch.course.name }}</div>
+                  <div class="batch-card__branch text-muted text-sm">{{ batch.branch.name }} · {{ batch.branch.city }}</div>
                 </div>
                 <span class="badge" [class.badge-success]="batch.isActive" [class.badge-neutral]="!batch.isActive">
                   {{ batch.isActive ? 'Active' : 'Inactive' }}
@@ -65,15 +66,40 @@ import { AuthService } from '../../../core/auth/auth.service';
 
               <div class="batch-card__meta">
                 <span>👥 {{ batch.activeStudents ?? batch._count.batchStudents }} students</span>
-                <span>📅 Started {{ batch.startDate | slice:0:10 }}</span>
+                <span>📅 {{ batch.startDate | slice:0:10 }} @if (batch.endDate) { – {{ batch.endDate | slice:0:10 }} }</span>
+              </div>
+
+              <div class="batch-card__schedule">
+                <span class="section-label">Weekly Schedule</span>
+                <strong>{{ scheduleSummary(batch) }}</strong>
+                <span class="text-muted text-sm">Next: {{ nextScheduleLabel(batch) }}</span>
+              </div>
+
+              <div class="batch-card__roster">
+                <span class="section-label">Roster</span>
+                @if (!batch.batchStudents?.length) {
+                  <span class="text-muted text-sm">No enrolled students</span>
+                } @else {
+                  @for (student of batch.batchStudents | slice:0:4; track student.id) {
+                    <div class="roster-row">
+                      <span>{{ student.student.fullName }}</span>
+                      <small>{{ student.student.course }} · {{ student.student.branch.name }}</small>
+                    </div>
+                  }
+                }
               </div>
 
               <div class="batch-card__actions">
-                <a class="btn btn-secondary" [routerLink]="['/teacher/attendance']" [queryParams]="{ batchId: batch.id }">
-                  Mark Attendance
-                </a>
+                @if (batch.teamsJoinUrl) {
+                  <a class="btn btn-primary" [href]="batch.teamsJoinUrl" target="_blank" rel="noopener">Open Teams Class ↗</a>
+                } @else {
+                  <button class="btn btn-secondary" disabled>Teams link not configured</button>
+                }
                 <a class="btn btn-ghost" [routerLink]="['/teacher/my-students']" [queryParams]="{ batchId: batch.id }">
                   View Students
+                </a>
+                <a class="btn btn-ghost" [routerLink]="['/teacher/schedule']" [queryParams]="{ batchId: batch.id }">
+                  Schedule
                 </a>
               </div>
             </div>
@@ -87,17 +113,9 @@ import { AuthService } from '../../../core/auth/auth.service';
             <span class="quick-link__icon">👥</span>
             <span class="quick-link__label">My Batches</span>
           </a>
-          <a routerLink="/teacher/attendance"  class="quick-link card">
-            <span class="quick-link__icon">✅</span>
-            <span class="quick-link__label">Attendance</span>
-          </a>
           <a routerLink="/teacher/schedule"    class="quick-link card">
             <span class="quick-link__icon">📅</span>
             <span class="quick-link__label">Schedule</span>
-          </a>
-          <a routerLink="/teacher/content"     class="quick-link card">
-            <span class="quick-link__icon">🖥️</span>
-            <span class="quick-link__label">Content</span>
           </a>
         </div>
       }
@@ -162,7 +180,34 @@ import { AuthService } from '../../../core/auth/auth.service';
       font-size: var(--font-size-sm);
       color: var(--color-text-muted);
       margin-bottom: 16px;
+      flex-wrap: wrap;
     }
+    .batch-card__branch { margin-top: 2px; }
+    .batch-card__schedule,
+    .batch-card__roster {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 12px;
+      margin-bottom: 12px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg);
+    }
+    .section-label {
+      font-size: var(--font-size-xs);
+      font-weight: 700;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+    .roster-row {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: var(--font-size-sm);
+    }
+    .roster-row small { color: var(--color-text-muted); }
     .batch-card__actions { display: flex; gap: 8px; }
     .teacher-dashboard__quick-links {
       display: grid;
@@ -214,5 +259,37 @@ export class TeacherDashboardComponent implements OnInit {
       next:  (data) => { this.batches.set(data); this.loading.set(false); },
       error: (err)  => { this.error.set(err.message); this.loading.set(false); },
     });
+  }
+
+  scheduleSummary(batch: TeacherBatch): string {
+    if (!batch.batchSchedules.length) return 'No schedule set';
+    return batch.batchSchedules.map((slot) => this.formatScheduleSlot(slot)).join('; ');
+  }
+
+  nextScheduleLabel(batch: TeacherBatch): string {
+    if (!batch.batchSchedules.length) return 'No upcoming class';
+    const today = new Date().getDay();
+    const sorted = [...batch.batchSchedules].sort((a, b) => {
+      const dayDeltaA = (a.dayOfWeek - today + 7) % 7;
+      const dayDeltaB = (b.dayOfWeek - today + 7) % 7;
+      return dayDeltaA - dayDeltaB || a.startTime.localeCompare(b.startTime);
+    });
+    return this.formatScheduleSlot(sorted[0]);
+  }
+
+  private formatScheduleSlot(slot: BatchSchedule): string {
+    const start = this.formatTime(slot.startTime);
+    const end = this.formatTime(slot.endTime);
+    const compactStart = start.period === end.period ? start.time : `${start.time} ${start.period}`;
+    return `${slot.dayName} ${compactStart}–${end.time} ${end.period}`;
+  }
+
+  private formatTime(value: string): { time: string; period: 'AM' | 'PM' } {
+    const [hourRaw, minuteRaw = '00'] = value.split(':');
+    const hour24 = Number(hourRaw);
+    const minute = Number(minuteRaw);
+    const period = hour24 >= 12 ? 'PM' : 'AM';
+    const hour12 = hour24 % 12 || 12;
+    return { time: `${hour12}:${String(minute).padStart(2, '0')}`, period };
   }
 }

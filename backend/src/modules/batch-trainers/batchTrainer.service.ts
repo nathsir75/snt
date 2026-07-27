@@ -6,7 +6,7 @@ const BATCH_TRAINER_SELECT = {
   id: true,
   isPrimary: true,
   assignedAt: true,
-  trainer: { select: { id: true, fullName: true, email: true, specialization: true, isActive: true } },
+  trainer: { select: { id: true, fullName: true, email: true, specialization: true, trainerType: true, isActive: true } },
   batch:   { select: { id: true, name: true, branch: { select: { id: true, name: true } } } },
 };
 
@@ -32,7 +32,7 @@ export const batchTrainerService = {
 
     assertBranchAccess(user, batch.branchId, `batch id=${data.batchId}`);
 
-    if (batch.branchId !== trainer.branchId) {
+    if (!isSuperAdmin(user.role) && batch.branchId !== trainer.branchId) {
       console.warn(`[BatchTrainerService] Cross-branch assignment denied — batch branchId=${batch.branchId}, trainer branchId=${trainer.branchId}`);
       throw new Error('BRANCH_MISMATCH');
     }

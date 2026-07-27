@@ -18,7 +18,9 @@ export async function getTeacherBatchIds(user: AuthPayload): Promise<number[] | 
   }
 
   const assignments = await prisma.teacherBatchAssignment.findMany({
-    where:  { userId: user.userId, branchId: user.branchId as number },
+    // The assignment is the authorization boundary.  A Head Office programme
+    // may be assigned to a teacher whose account belongs to another branch.
+    where:  { userId: user.userId },
     select: { batchId: true },
   });
 
@@ -52,7 +54,7 @@ export async function getTeacherCourseIds(user: AuthPayload): Promise<number[] |
   if (user.role !== ROLES.TEACHER) return null;
 
   const assignments = await prisma.teacherBatchAssignment.findMany({
-    where:   { userId: user.userId, branchId: user.branchId as number },
+    where:   { userId: user.userId },
     include: { batch: { select: { courseId: true } } },
   });
 

@@ -4,6 +4,52 @@ import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+const MUMBAI_BRANCH_SEED = {
+  name:      'SNT Mumbai',
+  code:      'mumbai01',
+  subdomain: 'mumbai',
+  city:      'Mumbai',
+  state:     'Maharashtra',
+  status:    'active',
+};
+
+async function findOrCreateMumbaiBranch() {
+  const matches = await prisma.branch.findMany({
+    where: {
+      OR: [
+        { code: MUMBAI_BRANCH_SEED.code },
+        { subdomain: MUMBAI_BRANCH_SEED.subdomain },
+      ],
+    },
+    orderBy: { id: 'asc' },
+  });
+
+  const byCode = matches.find((branch) => branch.code === MUMBAI_BRANCH_SEED.code);
+  const bySubdomain = matches.find((branch) => branch.subdomain === MUMBAI_BRANCH_SEED.subdomain);
+
+  if (!byCode && !bySubdomain) {
+    return prisma.branch.create({ data: MUMBAI_BRANCH_SEED });
+  }
+
+  if (byCode && (!bySubdomain || bySubdomain.id === byCode.id)) {
+    return prisma.branch.update({
+      where: { id: byCode.id },
+      data: {
+        name: MUMBAI_BRANCH_SEED.name,
+        subdomain: MUMBAI_BRANCH_SEED.subdomain,
+        city: MUMBAI_BRANCH_SEED.city,
+        state: MUMBAI_BRANCH_SEED.state,
+        status: MUMBAI_BRANCH_SEED.status,
+      },
+    });
+  }
+
+  console.log(
+    `[Seed] Reusing existing Mumbai branch by subdomain '${MUMBAI_BRANCH_SEED.subdomain}' to avoid code/subdomain unique conflict`,
+  );
+  return bySubdomain!;
+}
+
 async function main() {
   // ── Roles ──────────────────────────────────────────────────────────────────
   const roles = await Promise.all([
@@ -16,18 +62,7 @@ async function main() {
   console.log('[Seed] Roles:', roles.map(r => r.name).join(', '));
 
   // ── Branch ─────────────────────────────────────────────────────────────────
-  const branch = await prisma.branch.upsert({
-    where:  { code: 'mumbai01' },
-    update: { subdomain: 'mumbai', name: 'SNT Mumbai', city: 'Mumbai', state: 'Maharashtra', status: 'active' },
-    create: {
-      name:      'SNT Mumbai',
-      code:      'mumbai01',
-      subdomain: 'mumbai',
-      city:      'Mumbai',
-      state:     'Maharashtra',
-      status:    'active',
-    },
-  });
+  const branch = await findOrCreateMumbaiBranch();
   console.log('[Seed] Branch:', branch.name, '| subdomain:', branch.subdomain);
 
   const sndtBranch = await prisma.branch.upsert({

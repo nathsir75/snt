@@ -15,6 +15,8 @@ export interface Batch {
   id: number;
   name: string;
   schedule: string | null;
+  teamsJoinUrl: string | null;
+  isCentralProgramme: boolean;
   capacity: number | null;
   startDate: string;
   endDate: string | null;
@@ -34,13 +36,18 @@ export interface CreateBatchPayload {
   startDate: string;
   endDate?: string;
   schedule?: string;
+  teamsJoinUrl?: string;
+  isCentralProgramme?: boolean;
   capacity?: number;
 }
 
 export interface UpdateBatchPayload {
   name?: string;
   schedule?: string;
+  teamsJoinUrl?: string | null;
+  isCentralProgramme?: boolean;
   capacity?: number;
+  startDate?: string;
   endDate?: string;
   isActive?: boolean;
 }

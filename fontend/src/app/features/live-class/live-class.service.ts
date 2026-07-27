@@ -22,6 +22,13 @@ export type LiveSession = {
 export type StudentLiveSessionsResponse = {
   batch: { id: number; name: string; course?: { id: number; name: string; code: string } } | null;
   currentLiveSession: LiveSession | null;
+  currentTeamsMeeting: {
+    batchId: number;
+    batchName: string;
+    joinUrl: string;
+    startTime: string;
+    endTime: string;
+  } | null;
   recordedSessions: LiveSession[];
 };
 

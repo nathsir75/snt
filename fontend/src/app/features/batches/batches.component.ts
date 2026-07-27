@@ -5,6 +5,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
+import { catchError, forkJoin, of } from 'rxjs';
 import { BatchService } from './batch.service';
 import { Batch, BatchStatusFilter } from './batch.models';
 import { AuthService } from '../../core/auth/auth.service';
@@ -12,6 +13,13 @@ import { PageShellComponent } from '../../shared/components/page-shell/page-shel
 import { PageStateComponent } from '../../shared/components/page-state/page-state.component';
 import { BadgeComponent, BadgeVariant } from '../../shared/components/badge/badge.component';
 import { BatchFormComponent } from './batch-form.component';
+import { BatchTrainerAssignmentComponent } from './batch-trainer-assignment.component';
+import { BatchTrainerAssignment } from './batch-trainer.models';
+import { BatchTrainerService } from './batch-trainer.service';
+import { Trainer } from '../trainers/trainer.models';
+import { TrainerService } from '../trainers/trainer.service';
+import { BatchSchedule, DAYS_OF_WEEK } from '../schedules/schedule.models';
+import { ScheduleService } from '../schedules/schedule.service';
 
 type LoadState = 'loading' | 'error' | 'ready';
 const PAGE_SIZE = 15;
@@ -22,6 +30,7 @@ const PAGE_SIZE = 15;
   imports: [
     FormsModule, DatePipe,
     PageShellComponent, PageStateComponent, BadgeComponent, BatchFormComponent,
+    BatchTrainerAssignmentComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -79,6 +88,7 @@ const PAGE_SIZE = 15;
                   <tr>
                     <th>Batch</th>
                     <th>Course</th>
+                    <th>Trainers</th>
                     <th>Schedule</th>
                     <th>Start Date</th>
                     <th>End Date</th>
@@ -99,7 +109,22 @@ const PAGE_SIZE = 15;
                         <p class="font-medium">{{ b.course.name }}</p>
                         <p class="text-xs text-muted">{{ b.course.code }}</p>
                       </td>
-                      <td class="text-muted">{{ b.schedule || '—' }}</td>
+                      <td>
+                        @if (trainersForBatch(b.id).length) {
+                          <div class="trainer-list">
+                            @for (assignment of trainersForBatch(b.id); track assignment.id) {
+                              <span class="trainer-pill" [class.trainer-pill--primary]="assignment.isPrimary">
+                                {{ assignment.trainer.fullName }}
+                              </span>
+                            }
+                          </div>
+                        } @else {
+                          <span class="text-muted">—</span>
+                        }
+                      </td>
+                      <td class="text-muted">
+                        <span class="schedule-summary">{{ scheduleDisplayForBatch(b.id) }}</span>
+                      </td>
                       <td class="text-muted">{{ b.startDate | date:'dd MMM yyyy' }}</td>
                       <td class="text-muted">{{ b.endDate ? (b.endDate | date:'dd MMM yyyy') : '—' }}</td>
                       <td>{{ b._count.batchStudents }}</td>
@@ -109,7 +134,10 @@ const PAGE_SIZE = 15;
                       </td>
                       @if (canWrite()) {
                         <td>
-                          <button class="btn btn-ghost btn-sm" (click)="openEdit(b)">Edit</button>
+                          <div class="row-actions">
+                            <button class="btn btn-ghost btn-sm" (click)="openAssignTrainer(b)">Assign Trainer</button>
+                            <button class="btn btn-ghost btn-sm" (click)="openEdit(b)">Edit</button>
+                          </div>
                         </td>
                       }
                     </tr>
@@ -137,6 +165,14 @@ const PAGE_SIZE = 15;
         (saved)="onSaved($event)"
         (cancel)="closeDrawer()"
       />
+      <snt-batch-trainer-assignment
+        [open]="assignmentDrawerOpen()"
+        [batch]="assigningBatch()"
+        [trainers]="trainerChoices()"
+        [assignments]="assigningBatchAssignments()"
+        (assigned)="onTrainerAssigned($event)"
+        (cancel)="closeAssignmentDrawer()"
+      />
     }
   `,
   styles: [`
@@ -160,6 +196,28 @@ const PAGE_SIZE = 15;
     }
     .filter-count { font-size: var(--font-size-xs); color: var(--color-text-muted); margin-left: auto; white-space: nowrap; }
     .btn-sm { padding: 5px 10px; font-size: var(--font-size-xs); }
+    .row-actions { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+    .trainer-list { display: flex; flex-wrap: wrap; gap: 4px; max-width: 180px; }
+    .trainer-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 2px 7px;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      color: var(--color-text-muted);
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      max-width: 170px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .trainer-pill--primary {
+      background: #dbeafe;
+      border-color: #bfdbfe;
+      color: #1e40af;
+    }
     .pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 0; }
     .pagination-info { font-size: var(--font-size-sm); color: var(--color-text-muted); }
     .text-muted { color: var(--color-text-muted); }
@@ -169,6 +227,9 @@ const PAGE_SIZE = 15;
 export class BatchesComponent implements OnInit {
   private readonly svc        = inject(BatchService);
   private readonly auth       = inject(AuthService);
+  private readonly batchTrainerSvc = inject(BatchTrainerService);
+  private readonly trainerSvc = inject(TrainerService);
+  private readonly scheduleSvc = inject(ScheduleService);
   private readonly destroyRef = inject(DestroyRef);
 
   // counselor gets read-only view; super_admin and branch_admin can write
@@ -180,6 +241,12 @@ export class BatchesComponent implements OnInit {
   readonly page     = signal(1);
   readonly drawerOpen   = signal(false);
   readonly editingBatch = signal<Batch | null>(null);
+  readonly assignmentDrawerOpen = signal(false);
+  readonly assigningBatch = signal<Batch | null>(null);
+  readonly trainerChoices = signal<Trainer[]>([]);
+  readonly assignedTrainers = signal<Record<number, BatchTrainerAssignment[]>>({});
+  readonly schedulesByBatch = signal<Record<number, BatchSchedule[]>>({});
+  readonly scheduleLoadErrors = signal<Record<number, boolean>>({});
 
   searchTerm   = '';
   statusFilter: BatchStatusFilter = 'all';
@@ -213,8 +280,75 @@ export class BatchesComponent implements OnInit {
     this.svc.getAll()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (data) => { this.all.set(data); this.state.set('ready'); },
+        next: (data) => {
+          this.all.set(data);
+          this.state.set('ready');
+          this.loadAssignmentsFor(data);
+          this.loadSchedulesFor(data);
+        },
         error: (e: Error) => { this.errorMsg.set(e.message); this.state.set('error'); },
+      });
+  }
+
+  private loadAssignmentsFor(batches: Batch[]): void {
+    if (!batches.length) {
+      this.assignedTrainers.set({});
+      return;
+    }
+
+    const requests = batches.map((batch) =>
+      this.batchTrainerSvc.getByBatch(batch.id).pipe(catchError(() => of([] as BatchTrainerAssignment[])))
+    );
+
+    forkJoin(requests)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((results) => {
+        const map: Record<number, BatchTrainerAssignment[]> = {};
+        batches.forEach((batch, index) => {
+          map[batch.id] = results[index] ?? [];
+        });
+        this.assignedTrainers.set(map);
+      });
+  }
+
+  private loadTrainerChoices(): void {
+    this.trainerSvc.getAll()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (trainers) => this.trainerChoices.set(trainers.filter((trainer) => trainer.isActive)),
+        error: () => this.trainerChoices.set([]),
+      });
+  }
+
+  private loadSchedulesFor(batches: Batch[]): void {
+    if (!batches.length) {
+      this.schedulesByBatch.set({});
+      this.scheduleLoadErrors.set({});
+      return;
+    }
+
+    const requests = batches.map((batch) =>
+      this.scheduleSvc.getByBatch(batch.id).pipe(
+        catchError(() => of(null as BatchSchedule[] | null))
+      )
+    );
+
+    forkJoin(requests)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((results) => {
+        const schedules: Record<number, BatchSchedule[]> = {};
+        const errors: Record<number, boolean> = {};
+        batches.forEach((batch, index) => {
+          const result = results[index];
+          if (result === null) {
+            schedules[batch.id] = [];
+            errors[batch.id] = true;
+          } else {
+            schedules[batch.id] = result;
+          }
+        });
+        this.schedulesByBatch.set(schedules);
+        this.scheduleLoadErrors.set(errors);
       });
   }
 
@@ -225,6 +359,16 @@ export class BatchesComponent implements OnInit {
   openCreate(): void { this.editingBatch.set(null); this.drawerOpen.set(true); }
   openEdit(b: Batch): void { this.editingBatch.set(b); this.drawerOpen.set(true); }
   closeDrawer(): void { this.drawerOpen.set(false); }
+  openAssignTrainer(batch: Batch): void {
+    this.assigningBatch.set(batch);
+    this.assignmentDrawerOpen.set(true);
+    this.loadTrainerChoices();
+    this.refreshBatchAssignments(batch.id);
+  }
+  closeAssignmentDrawer(): void {
+    this.assignmentDrawerOpen.set(false);
+    this.assigningBatch.set(null);
+  }
 
   onSaved(batch: Batch): void {
     this.closeDrawer();
@@ -234,6 +378,84 @@ export class BatchesComponent implements OnInit {
     } else {
       this.all.update((list) => [batch, ...list]);
     }
+    this.refreshBatchSchedules(batch.id);
+  }
+
+  onTrainerAssigned(assignment: BatchTrainerAssignment): void {
+    const batchId = assignment.batch.id;
+    this.assignedTrainers.update((map) => ({
+      ...map,
+      [batchId]: [...(map[batchId] ?? []), assignment],
+    }));
+    this.refreshBatchAssignments(batchId);
+    this.closeAssignmentDrawer();
+  }
+
+  trainersForBatch(batchId: number): BatchTrainerAssignment[] {
+    return this.assignedTrainers()[batchId] ?? [];
+  }
+
+  scheduleDisplayForBatch(batchId: number): string {
+    const map = this.schedulesByBatch();
+    if (!(batchId in map)) return 'Loading...';
+    if (this.scheduleLoadErrors()[batchId]) return 'Schedule unavailable';
+
+    const schedules = map[batchId];
+    if (!schedules.length) return 'No schedule set';
+
+    return schedules.map((slot) => this.formatScheduleSlot(slot)).join('; ');
+  }
+
+  assigningBatchAssignments(): BatchTrainerAssignment[] {
+    const batch = this.assigningBatch();
+    return batch ? this.trainersForBatch(batch.id) : [];
+  }
+
+  private refreshBatchAssignments(batchId: number): void {
+    this.batchTrainerSvc.getByBatch(batchId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (assignments) => {
+          this.assignedTrainers.update((map) => ({ ...map, [batchId]: assignments }));
+        },
+        error: () => {},
+      });
+  }
+
+  private refreshBatchSchedules(batchId: number): void {
+    this.scheduleSvc.getByBatch(batchId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (schedules) => {
+          this.schedulesByBatch.update((map) => ({ ...map, [batchId]: schedules }));
+          this.scheduleLoadErrors.update((map) => {
+            const { [batchId]: _ignored, ...rest } = map;
+            return rest;
+          });
+        },
+        error: () => {
+          this.schedulesByBatch.update((map) => ({ ...map, [batchId]: [] }));
+          this.scheduleLoadErrors.update((map) => ({ ...map, [batchId]: true }));
+        },
+      });
+  }
+
+  private formatScheduleSlot(slot: BatchSchedule): string {
+    const day = slot.dayName || DAYS_OF_WEEK.find((d) => d.value === slot.dayOfWeek)?.label || 'Day';
+    const start = this.formatTime(slot.startTime);
+    const end = this.formatTime(slot.endTime);
+    const compactStart = start.period === end.period ? start.time : `${start.time} ${start.period}`;
+    return `${day} ${compactStart}–${end.time} ${end.period}`;
+  }
+
+  private formatTime(value: string): { time: string; period: 'AM' | 'PM' } {
+    const [hourRaw, minuteRaw = '00'] = value.split(':');
+    const hour24 = Number(hourRaw);
+    const minute = Number(minuteRaw);
+    const period = hour24 >= 12 ? 'PM' : 'AM';
+    const hour12 = hour24 % 12 || 12;
+    const minuteText = Number.isFinite(minute) ? String(minute).padStart(2, '0') : '00';
+    return { time: `${hour12}:${minuteText}`, period };
   }
 
   onSearchChange(): void { this.page.set(1); }
