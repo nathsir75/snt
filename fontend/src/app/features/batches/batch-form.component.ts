@@ -14,6 +14,7 @@ import { BatchSchedule, DAYS_OF_WEEK } from '../schedules/schedule.models';
 import { ScheduleService } from '../schedules/schedule.service';
 
 interface CourseOption { id: number; name: string; code: string; }
+interface BranchOption { id: number; name: string; city: string; }
 
 function dateRangeValidator(control: AbstractControl): ValidationErrors | null {
   const startDate = control.get('startDate')?.value;
@@ -49,6 +50,18 @@ function dateRangeValidator(control: AbstractControl): ValidationErrors | null {
         </div>
 
         @if (!batch) {
+          @if (auth.isSuperAdmin()) {
+            <div class="form-group">
+              <label for="branchId">Host Branch *</label>
+              <select id="branchId" formControlName="branchId">
+                <option value="">Select host branch</option>
+                @for (branch of branches(); track branch.id) {
+                  <option [value]="branch.id">{{ branch.name }} — {{ branch.city }}</option>
+                }
+              </select>
+              <small class="text-muted">Central programme students may still be explicitly enrolled from any branch.</small>
+            </div>
+          }
           <div class="form-group">
             <label for="courseId">Course *</label>
             <select id="courseId" formControlName="courseId">
@@ -196,6 +209,7 @@ export class BatchFormComponent implements OnChanges, OnInit {
   readonly loading     = signal(false);
   readonly serverError = signal<string | null>(null);
   readonly courses     = signal<CourseOption[]>([]);
+  readonly branches    = signal<BranchOption[]>([]);
   readonly structuredSchedules = signal<BatchSchedule[]>([]);
   readonly scheduleLoading = signal(false);
   readonly scheduleError = signal<string | null>(null);
@@ -203,6 +217,7 @@ export class BatchFormComponent implements OnChanges, OnInit {
   readonly form = this.fb.nonNullable.group({
     name:      ['', Validators.required],
     courseId:  [0, [Validators.required, Validators.min(1)]],
+    branchId:  [0, [Validators.required, Validators.min(1)]],
     startDate: ['', Validators.required],
     endDate:   [''],
     schedule:  [''],
@@ -219,6 +234,12 @@ export class BatchFormComponent implements OnChanges, OnInit {
       next: (c) => this.courses.set(c),
       error: () => {},
     });
+    if (this.auth.isSuperAdmin()) {
+      this.api.get<BranchOption[]>('/branches').subscribe({
+        next: (branches) => this.branches.set(branches),
+        error: () => {},
+      });
+    }
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -238,7 +259,7 @@ export class BatchFormComponent implements OnChanges, OnInit {
       this.loadStructuredSchedules(this.batch.id);
     }
     if (changes['open'] && this.open && !this.batch) {
-      this.form.reset({ isActive: true, courseId: 0 });
+      this.form.reset({ isActive: true, courseId: 0, branchId: 0 });
       this.serverError.set(null);
       this.structuredSchedules.set([]);
       this.scheduleError.set(null);
@@ -265,7 +286,7 @@ export class BatchFormComponent implements OnChanges, OnInit {
           isActive:  v.isActive,
         })
       : (() => {
-          const branchId = Number(this.auth.branchId());
+          const branchId = this.auth.isSuperAdmin() ? Number(v.branchId) : Number(this.auth.branchId());
           if (!branchId) {
             this.serverError.set('Branch context is missing. Please re-login.');
             this.loading.set(false);
