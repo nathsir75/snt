@@ -50,6 +50,7 @@ export const studentService = {
                 id:       true,
                 name:     true,
                 isActive: true,
+                isCentralProgramme: true,
                 course:   { select: { id: true, name: true, code: true } },
               },
             },
@@ -83,6 +84,7 @@ export const studentService = {
             batchId:        activeBatch.batch.id,
             batchName:      activeBatch.batch.name,
             isActive:       activeBatch.batch.isActive,
+            isCentralProgramme: activeBatch.batch.isCentralProgramme,
             joinedAt:       activeBatch.joinedAt,
             course:         activeBatch.batch.course,
           }

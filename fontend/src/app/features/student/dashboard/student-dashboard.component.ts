@@ -101,8 +101,8 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
           <!-- Quick links -->
           <div class="section-title">Quick Access</div>
           <div class="quick-links">
-            @if (isSndtwu()) {
-              <a routerLink="/student/live-class"       class="quick-link card"><span class="quick-link__icon">🎥</span><span class="quick-link__label">Live Class</span></a>
+            @if (isCentralProgramme()) {
+              <a routerLink="/student/live-class"       class="quick-link card quick-link--live"><span class="quick-link__icon">🎥</span><span class="quick-link__label">Join Live Class</span></a>
               <a routerLink="/student/recorded-classes" class="quick-link card"><span class="quick-link__icon">▶️</span><span class="quick-link__label">Recorded Classes</span></a>
               <a routerLink="/student/study-material"   class="quick-link card"><span class="quick-link__icon">📄</span><span class="quick-link__label">Study Material</span></a>
               <a routerLink="/student/mentor-qa"        class="quick-link card"><span class="quick-link__icon">💬</span><span class="quick-link__label">Mentor Q&A</span></a>
@@ -182,6 +182,7 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
       transition: box-shadow .15s, transform .15s;
     }
     .quick-link:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .quick-link--live { border-color: #635bff; background: linear-gradient(135deg, #f5f3ff, #eef2ff); }
     .quick-link__icon { font-size: 24px; }
     .quick-link__label { font-size: var(--font-size-sm); font-weight: 500; }
 
@@ -195,7 +196,8 @@ export class StudentDashboardComponent implements OnInit {
   readonly state    = signal<DashState>('loading');
   readonly profile  = signal<StudentProfile | null>(null);
   readonly errorMsg = signal<string | null>(null);
-  readonly isSndtwu = computed(() => this.auth.currentUser()?.branch?.code?.toUpperCase() === 'SNDTWU');
+  // Central programme access is determined by enrollment, not by the account's branch.
+  readonly isCentralProgramme = computed(() => this.profile()?.activeBatch?.isCentralProgramme === true);
 
   readonly initials = computed(() => {
     const name = this.profile()?.fullName ?? '';

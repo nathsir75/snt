@@ -15,6 +15,7 @@ export interface StudentActiveBatch {
   batchId: number;
   batchName: string;
   isActive: boolean;
+  isCentralProgramme: boolean;
   joinedAt: string;
   course: StudentCourse;
 }
