@@ -44,6 +44,14 @@ function getIndiaTimeParts(date = new Date()): { dayOfWeek: number; time: string
   };
 }
 
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function addDays(dateText: string, days: number): string {
+  const date = new Date(`${dateText}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 type CreateLiveSessionData = {
   batchId: number;
   title: string;
@@ -161,7 +169,13 @@ export const liveSessionService = {
 
     if (!batchStudent) {
       console.log(`[LiveSessionService] No active batch for studentId=${record.studentId}`);
-      return { batch: null, currentLiveSession: null, recordedSessions: [] };
+      return {
+        batch: null,
+        currentLiveSession: null,
+        currentTeamsMeeting: null,
+        upcomingTeamsMeeting: null,
+        recordedSessions: [],
+      };
     }
 
     const now = new Date();
@@ -203,8 +217,8 @@ export const liveSessionService = {
     const activeSchedule = batchStudent.batch.batchSchedules.find((slot) =>
       slot.dayOfWeek === indiaNow.dayOfWeek && slot.startTime <= indiaNow.time && indiaNow.time < slot.endTime,
     );
-    const currentTeamsMeeting = batchStudent.batch.teamsJoinUrl && activeSchedule &&
-      indiaNow.date >= batchStart && (!batchEnd || indiaNow.date <= batchEnd)
+    const batchIsInDateRange = indiaNow.date >= batchStart && (!batchEnd || indiaNow.date <= batchEnd);
+    const currentTeamsMeeting = batchStudent.batch.teamsJoinUrl && activeSchedule && batchIsInDateRange
       ? {
           batchId: batchStudent.batch.id,
           batchName: batchStudent.batch.name,
@@ -213,11 +227,39 @@ export const liveSessionService = {
           endTime: activeSchedule.endTime,
         }
       : null;
+    const upcomingSchedule = batchStudent.batch.teamsJoinUrl && !currentTeamsMeeting
+      ? batchStudent.batch.batchSchedules
+          .map((slot) => {
+            const daysUntilSlot = (slot.dayOfWeek - indiaNow.dayOfWeek + 7) % 7;
+            const startsLaterToday = daysUntilSlot === 0 && slot.startTime > indiaNow.time;
+            const offsetDays = startsLaterToday || daysUntilSlot > 0 ? daysUntilSlot : 7;
+            const scheduledDate = addDays(indiaNow.date, offsetDays);
+            return { slot, scheduledDate };
+          })
+          .filter(({ scheduledDate }) => scheduledDate >= batchStart && (!batchEnd || scheduledDate <= batchEnd))
+          .sort((a, b) =>
+            a.scheduledDate === b.scheduledDate
+              ? a.slot.startTime.localeCompare(b.slot.startTime)
+              : a.scheduledDate.localeCompare(b.scheduledDate)
+          )[0] ?? null
+      : null;
+    const upcomingTeamsMeeting = upcomingSchedule && batchStudent.batch.teamsJoinUrl
+      ? {
+          batchId: batchStudent.batch.id,
+          batchName: batchStudent.batch.name,
+          joinUrl: batchStudent.batch.teamsJoinUrl,
+          date: upcomingSchedule.scheduledDate,
+          dayName: DAY_NAMES[upcomingSchedule.slot.dayOfWeek],
+          startTime: upcomingSchedule.slot.startTime,
+          endTime: upcomingSchedule.slot.endTime,
+        }
+      : null;
 
     return {
       batch: batchStudent.batch,
       currentLiveSession,
       currentTeamsMeeting,
+      upcomingTeamsMeeting,
       recordedSessions,
     };
   },

@@ -29,6 +29,15 @@ export type StudentLiveSessionsResponse = {
     startTime: string;
     endTime: string;
   } | null;
+  upcomingTeamsMeeting: {
+    batchId: number;
+    batchName: string;
+    joinUrl: string;
+    date: string;
+    dayName: string;
+    startTime: string;
+    endTime: string;
+  } | null;
   recordedSessions: LiveSession[];
 };
 

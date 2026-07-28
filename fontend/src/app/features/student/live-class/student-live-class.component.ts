@@ -34,6 +34,17 @@ import { LiveClassService, LiveSession, StudentLiveSessionsResponse } from '../.
             Join Live Class ↗
           </a>
         </div>
+      } @else if (!currentSession() && upcomingTeamsMeeting()) {
+        <div class="teams-card card">
+          <div>
+            <span class="teams-eyebrow">Next scheduled live class</span>
+            <h2>{{ upcomingTeamsMeeting()!.batchName }}</h2>
+            <p>{{ upcomingTeamsMeeting()!.dayName }}, {{ upcomingTeamsMeeting()!.date | date:'mediumDate' }} · {{ upcomingTeamsMeeting()!.startTime }}–{{ upcomingTeamsMeeting()!.endTime }} IST</p>
+          </div>
+          <a class="btn btn-primary teams-join" [href]="upcomingTeamsMeeting()!.joinUrl" target="_blank" rel="noopener noreferrer">
+            Join Scheduled Class ↗
+          </a>
+        </div>
       } @else if (!currentSession()) {
         <div class="state card">No live class is active right now.</div>
       } @else {
@@ -85,6 +96,7 @@ export class StudentLiveClassComponent implements OnInit {
   readonly sessions = signal<StudentLiveSessionsResponse | null>(null);
   readonly currentSession = signal<LiveSession | null>(null);
   readonly teamsMeeting = signal<StudentLiveSessionsResponse['currentTeamsMeeting']>(null);
+  readonly upcomingTeamsMeeting = signal<StudentLiveSessionsResponse['upcomingTeamsMeeting']>(null);
 
   ngOnInit(): void {
     this.liveClassSvc.getStudentSessions().subscribe({
@@ -92,6 +104,7 @@ export class StudentLiveClassComponent implements OnInit {
         this.sessions.set(data);
         this.currentSession.set(data.currentLiveSession);
         this.teamsMeeting.set(data.currentTeamsMeeting);
+        this.upcomingTeamsMeeting.set(data.upcomingTeamsMeeting);
         this.loading.set(false);
       },
       error: () => {
