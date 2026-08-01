@@ -24,6 +24,8 @@ PM2_APP="${PM2_APP:-snt-api}"
 APP_USER="${APP_USER:-mahendra}"
 
 BACKEND_DIR="${BACKEND_DIR:-$APP_DIR/backend}"
+PM2_ENTRY="${PM2_ENTRY:-dist/server.js}"
+PM2_CWD="${PM2_CWD:-$BACKEND_DIR}"
 FRONTEND_DIR="${FRONTEND_DIR:-$APP_DIR/fontend}"
 FRONTEND_DIST="${FRONTEND_DIST:-$FRONTEND_DIR/dist/snt-frontend/browser}"
 PUBLIC_ROOT="${PUBLIC_ROOT:-/var/www/28479f79-f545-4a5b-90d3-ecdeea3a3ccb/public_html}"
@@ -53,14 +55,38 @@ run() {
 
 run_pm2() {
   log "pm2 $* (as $APP_USER)"
+  local quoted_cwd quoted_args
+  printf -v quoted_cwd '%q' "$PM2_CWD"
+  printf -v quoted_args '%q ' "$@"
+
   if [[ "$(id -un)" == "$APP_USER" ]]; then
-    pm2 "$@"
+    (cd "$PM2_CWD" && pm2 "$@")
     return
   fi
 
-  local quoted_args
-  printf -v quoted_args '%q ' "$@"
-  sudo -H -u "$APP_USER" bash -lc "pm2 $quoted_args"
+  sudo -H -u "$APP_USER" bash -lc "cd $quoted_cwd && pm2 $quoted_args"
+}
+
+pm2_app_exists() {
+  local quoted_cwd quoted_app
+  printf -v quoted_cwd '%q' "$PM2_CWD"
+  printf -v quoted_app '%q' "$PM2_APP"
+
+  if [[ "$(id -un)" == "$APP_USER" ]]; then
+    (cd "$PM2_CWD" && pm2 describe "$PM2_APP" >/dev/null 2>&1)
+    return
+  fi
+
+  sudo -H -u "$APP_USER" bash -lc "cd $quoted_cwd && pm2 describe $quoted_app >/dev/null 2>&1"
+}
+
+restart_or_start_pm2() {
+  if pm2_app_exists; then
+    run_pm2 restart "$PM2_APP" --update-env
+  else
+    log "PM2 app '$PM2_APP' was not found for user '$APP_USER'; starting $PM2_ENTRY"
+    run_pm2 start "$PM2_ENTRY" --name "$PM2_APP" --update-env
+  fi
 }
 
 on_error() {
@@ -90,7 +116,7 @@ fi
 cd "$APP_DIR"
 
 log "Starting SNT deployment"
-printf 'Repo: %s\nBranch: %s\nPM2 app: %s\nPM2 user: %s\nPublic root: %s\n' "$APP_DIR" "$BRANCH" "$PM2_APP" "$APP_USER" "$PUBLIC_ROOT"
+printf 'Repo: %s\nBranch: %s\nPM2 app: %s\nPM2 user: %s\nPM2 cwd: %s\nPM2 entry: %s\nPublic root: %s\n' "$APP_DIR" "$BRANCH" "$PM2_APP" "$APP_USER" "$PM2_CWD" "$PM2_ENTRY" "$PUBLIC_ROOT"
 
 current_branch="$(git branch --show-current)"
 [[ "$current_branch" == "$BRANCH" ]] || fail "Expected branch '$BRANCH' but current branch is '$current_branch'."
@@ -132,7 +158,7 @@ run npm run db:generate
 run npm run build
 
 log "Restarting backend PM2 app"
-run_pm2 restart "$PM2_APP" --update-env
+restart_or_start_pm2
 run_pm2 save
 
 log "Installing frontend dependencies"
