@@ -38,8 +38,14 @@ export const dailyQuizController = {
   archive: async (req: AuthRequest, res: Response): Promise<void> => {
     try { res.json(await dailyQuizService.archive(req.user!, Number(req.params.id))); } catch (err) { handle(res, err); }
   },
+  teacherReport: async (req: AuthRequest, res: Response): Promise<void> => {
+    try { res.json(await dailyQuizService.teacherReport(req.user!, req.query)); } catch (err) { handle(res, err); }
+  },
   studentList: async (req: AuthRequest, res: Response): Promise<void> => {
     try { res.json(await dailyQuizService.listForStudent(req.user!)); } catch (err) { handle(res, err); }
+  },
+  studentHistory: async (req: AuthRequest, res: Response): Promise<void> => {
+    try { res.json(await dailyQuizService.studentHistory(req.user!, req.query)); } catch (err) { handle(res, err); }
   },
   start: async (req: AuthRequest, res: Response): Promise<void> => {
     try { res.json(await dailyQuizService.start(req.user!, Number(req.params.id))); } catch (err) { handle(res, err); }

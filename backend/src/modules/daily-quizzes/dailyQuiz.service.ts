@@ -2,7 +2,7 @@ import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
 import { ROLES } from '../../common/roles';
 import { hasGlobalScope } from '../../common/utils/scope.util';
-import { assertTeacherBatchAccess } from '../../common/utils/teacher-scope.util';
+import { assertTeacherBatchAccess, getTeacherBatchIds } from '../../common/utils/teacher-scope.util';
 import { getStudentRecord } from '../../common/utils/student-scope.util';
 
 const MIN_ATTEMPT_MINUTES = 1;
@@ -35,6 +35,14 @@ function text(value: unknown): string {
 function asDate(value: unknown, code: string): Date {
   const date = new Date(text(value));
   if (Number.isNaN(date.getTime())) throw new Error(code);
+  return date;
+}
+
+function optionalDate(value: unknown, endOfDay = false): Date | undefined {
+  if (!text(value)) return undefined;
+  const date = new Date(text(value));
+  if (Number.isNaN(date.getTime())) throw new Error('INVALID_SCHEDULE');
+  if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(text(value))) date.setHours(23, 59, 59, 999);
   return date;
 }
 
@@ -176,6 +184,33 @@ async function finalizeAttempt(attemptId: number, answers: Record<string, number
     });
   });
   return getResult(attemptId);
+}
+
+async function finalizeExpiredAttempts(where: any) {
+  const expired = await prisma.dailyQuizAttempt.findMany({
+    where: { ...where, status: 'in_progress', expiresAt: { lt: new Date() } },
+    select: { id: true },
+  });
+  for (const attempt of expired) await finalizeAttempt(attempt.id, {});
+}
+
+function percent(score: number | null | undefined, total: number | null | undefined): number | null {
+  if (!total || total <= 0) return null;
+  return Math.round(((score ?? 0) / total) * 1000) / 10;
+}
+
+function average(values: number[]): number | null {
+  if (!values.length) return null;
+  return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10;
+}
+
+function resultStatus(percentage: number | null, status: string): string {
+  if (status === 'expired') return 'Expired';
+  if (percentage === null) return 'Not graded';
+  if (percentage >= 80) return 'Excellent';
+  if (percentage >= 60) return 'Good';
+  if (percentage >= 40) return 'Needs revision';
+  return 'Retake practice';
 }
 
 async function getResult(attemptId: number) {
@@ -381,5 +416,209 @@ export const dailyQuizService = {
     if (attempt.status === 'in_progress' && new Date() > attempt.expiresAt) return finalizeAttempt(attemptId, {});
     if (attempt.status === 'in_progress') throw new Error('ATTEMPT_IN_PROGRESS');
     return getResult(attemptId);
+  },
+
+  teacherReport: async (user: AuthPayload, filters: any) => {
+    const batchId = filters.batchId ? Number(filters.batchId) : null;
+    const from = optionalDate(filters.from);
+    const to = optionalDate(filters.to, true);
+    const teacherBatchIds = user.role === ROLES.TEACHER ? await getTeacherBatchIds(user) : null;
+    if (user.role === ROLES.TEACHER && teacherBatchIds?.length === 0) return { filters: { batchId, from, to }, summary: { totalQuizzesPublished: 0, totalAttempts: 0, completedAttempts: 0, possibleAttempts: 0, participationRate: 0, classAveragePercentage: null }, quizzes: [], students: [] };
+
+    const where: any = {
+      archivedAt: null,
+      ...(batchId ? { batchId } : {}),
+      ...(from || to ? { scheduledAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
+    };
+    if (user.role === ROLES.TEACHER) where.batchId = batchId ? batchId : { in: teacherBatchIds ?? [] };
+    else if (!hasGlobalScope(user)) where.branchId = user.branchId as number;
+
+    if (batchId) await assertBatchAccess(user, batchId);
+
+    const quizzes = await prisma.dailyQuiz.findMany({
+      where,
+      orderBy: { scheduledAt: 'desc' },
+      include: {
+        batch: { select: { id: true, name: true, branch: { select: { id: true, name: true } }, course: { select: { id: true, name: true } } } },
+        _count: { select: { questions: true } },
+      },
+    });
+    const quizIds = quizzes.map((quiz) => quiz.id);
+    const batchIds = [...new Set(quizzes.map((quiz) => quiz.batchId))];
+    if (quizIds.length === 0) {
+      return { filters: { batchId, from, to }, summary: { totalQuizzesPublished: 0, totalAttempts: 0, completedAttempts: 0, possibleAttempts: 0, participationRate: 0, classAveragePercentage: null }, quizzes: [], students: [] };
+    }
+
+    await finalizeExpiredAttempts({ quizId: { in: quizIds } });
+
+    const [enrollments, attempts] = await Promise.all([
+      prisma.batchStudent.findMany({
+        where: { batchId: { in: batchIds }, status: 'active' },
+        include: { student: { select: { id: true, fullName: true, email: true, mobile: true } } },
+      }),
+      prisma.dailyQuizAttempt.findMany({
+        where: { quizId: { in: quizIds } },
+        include: { student: { select: { id: true, fullName: true, email: true, mobile: true } } },
+        orderBy: { startedAt: 'desc' },
+      }),
+    ]);
+
+    const enrollmentsByBatch = new Map<number, typeof enrollments>();
+    for (const enrollment of enrollments) {
+      const list = enrollmentsByBatch.get(enrollment.batchId) ?? [];
+      list.push(enrollment);
+      enrollmentsByBatch.set(enrollment.batchId, list);
+    }
+    const attemptsByQuizStudent = new Map(attempts.map((attempt) => [`${attempt.quizId}:${attempt.studentId}`, attempt]));
+    const completedAttempts = attempts.filter((attempt) => attempt.status !== 'in_progress');
+    const percentages = completedAttempts.map((attempt) => percent(attempt.score, attempt.totalPoints)).filter((value): value is number => value !== null);
+    const possibleAttempts = quizzes.reduce((sum, quiz) => sum + (enrollmentsByBatch.get(quiz.batchId)?.length ?? 0), 0);
+
+    const studentMap = new Map<number, { id: number; fullName: string; email: string | null; mobile: string | null; assignedQuizzes: number; attempted: number; percentages: number[]; latest: any; history: any[] }>();
+    const quizRows = quizzes.map((quiz) => {
+      const rows = (enrollmentsByBatch.get(quiz.batchId) ?? []).map((enrollment) => {
+        const attempt = attemptsByQuizStudent.get(`${quiz.id}:${enrollment.studentId}`);
+        const pct = attempt ? percent(attempt.score, attempt.totalPoints) : null;
+        const row = {
+          studentId: enrollment.studentId,
+          fullName: enrollment.student.fullName,
+          email: enrollment.student.email,
+          mobile: enrollment.student.mobile,
+          score: attempt?.score ?? null,
+          totalPoints: attempt?.totalPoints ?? null,
+          percentage: pct,
+          status: attempt?.status ?? 'not_attempted',
+          submittedAt: attempt?.submittedAt ?? null,
+          startedAt: attempt?.startedAt ?? null,
+          resultStatus: attempt ? resultStatus(pct, attempt.status) : 'Not attempted',
+        };
+        const student = studentMap.get(enrollment.studentId) ?? { id: enrollment.studentId, fullName: enrollment.student.fullName, email: enrollment.student.email, mobile: enrollment.student.mobile, assignedQuizzes: 0, attempted: 0, percentages: [], latest: null, history: [] };
+        student.assignedQuizzes += 1;
+        if (attempt) {
+          student.attempted += 1;
+          if (pct !== null && attempt.status !== 'in_progress') student.percentages.push(pct);
+          student.history.push({ quizId: quiz.id, title: quiz.title, topic: quiz.topic, quizDate: quiz.lectureDate ?? quiz.scheduledAt, score: row.score, totalPoints: row.totalPoints, percentage: pct, status: row.status, submittedAt: row.submittedAt, resultStatus: row.resultStatus });
+          if (!student.latest || new Date(attempt.startedAt) > new Date(student.latest.startedAt)) student.latest = { ...student.history[student.history.length - 1], startedAt: attempt.startedAt };
+        }
+        studentMap.set(enrollment.studentId, student);
+        return row;
+      });
+      const quizCompleted = rows.filter((row) => row.status !== 'not_attempted' && row.status !== 'in_progress');
+      const quizPercentages = quizCompleted.map((row) => row.percentage).filter((value): value is number => value !== null);
+      return {
+        id: quiz.id,
+        title: quiz.title,
+        topic: quiz.topic,
+        quizDate: quiz.lectureDate ?? quiz.scheduledAt,
+        scheduledAt: quiz.scheduledAt,
+        closesAt: quiz.closesAt,
+        batch: quiz.batch,
+        questionCount: quiz._count.questions,
+        summary: {
+          enrolledStudents: rows.length,
+          attempts: rows.filter((row) => row.status !== 'not_attempted').length,
+          completedAttempts: quizCompleted.length,
+          participationRate: rows.length ? Math.round((quizCompleted.length / rows.length) * 1000) / 10 : 0,
+          averagePercentage: average(quizPercentages),
+        },
+        students: rows,
+      };
+    });
+
+    const students = Array.from(studentMap.values()).map((student) => {
+      student.history.sort((a, b) => new Date(a.quizDate).getTime() - new Date(b.quizDate).getTime());
+      const latest = student.history[student.history.length - 1];
+      const previous = student.history[student.history.length - 2];
+      const trend = student.history.length >= 2 && latest?.percentage !== null && previous?.percentage !== null
+        ? Math.round(((latest.percentage as number) - (previous.percentage as number)) * 10) / 10
+        : null;
+      return {
+        id: student.id,
+        fullName: student.fullName,
+        email: student.email,
+        mobile: student.mobile,
+        assignedQuizzes: student.assignedQuizzes,
+        attempted: student.attempted,
+        participationRate: student.assignedQuizzes ? Math.round((student.attempted / student.assignedQuizzes) * 1000) / 10 : 0,
+        averagePercentage: average(student.percentages),
+        latest: student.latest,
+        trend,
+        history: student.history,
+      };
+    }).sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+    return {
+      filters: { batchId, from, to },
+      summary: {
+        totalQuizzesPublished: quizzes.length,
+        totalAttempts: attempts.length,
+        completedAttempts: completedAttempts.length,
+        possibleAttempts,
+        participationRate: possibleAttempts ? Math.round((completedAttempts.length / possibleAttempts) * 1000) / 10 : 0,
+        classAveragePercentage: average(percentages),
+      },
+      quizzes: quizRows,
+      students,
+    };
+  },
+
+  studentHistory: async (user: AuthPayload, filters: any) => {
+    const record = await getStudentRecord(user);
+    if (!record) throw new Error('STUDENT_RECORD_NOT_FOUND');
+    const from = optionalDate(filters.from);
+    const to = optionalDate(filters.to, true);
+    const enrollments = await prisma.batchStudent.findMany({ where: { studentId: record.studentId, status: 'active' }, select: { batchId: true } });
+    const batchIds = enrollments.map((item) => item.batchId);
+    const quizWhere: any = {
+      batchId: { in: batchIds },
+      archivedAt: null,
+      isPublished: true,
+      ...(from || to ? { scheduledAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
+    };
+    const quizzes = await prisma.dailyQuiz.findMany({
+      where: quizWhere,
+      orderBy: { scheduledAt: 'desc' },
+      select: { id: true, title: true, topic: true, lectureDate: true, scheduledAt: true, closesAt: true, batch: { select: { id: true, name: true, course: { select: { id: true, name: true } } } } },
+    });
+    const quizIds = quizzes.map((quiz) => quiz.id);
+    if (quizIds.length) await finalizeExpiredAttempts({ quizId: { in: quizIds }, studentId: record.studentId });
+    const attempts = await prisma.dailyQuizAttempt.findMany({
+      where: { quizId: { in: quizIds }, studentId: record.studentId },
+      orderBy: { startedAt: 'desc' },
+    });
+    const quizById = new Map(quizzes.map((quiz) => [quiz.id, quiz]));
+    const history = attempts.map((attempt) => {
+      const quiz = quizById.get(attempt.quizId);
+      const pct = percent(attempt.score, attempt.totalPoints);
+      return {
+        attemptId: attempt.id,
+        quizId: attempt.quizId,
+        title: quiz?.title ?? 'Daily Quiz',
+        topic: quiz?.topic ?? null,
+        quizDate: quiz?.lectureDate ?? quiz?.scheduledAt ?? attempt.startedAt,
+        scheduledAt: quiz?.scheduledAt ?? null,
+        batch: quiz?.batch ?? null,
+        score: attempt.score,
+        totalPoints: attempt.totalPoints,
+        percentage: pct,
+        status: attempt.status,
+        startedAt: attempt.startedAt,
+        submittedAt: attempt.submittedAt,
+        resultStatus: resultStatus(pct, attempt.status),
+      };
+    }).sort((a, b) => new Date(b.quizDate).getTime() - new Date(a.quizDate).getTime());
+    const completed = history.filter((item) => item.status !== 'in_progress' && item.percentage !== null);
+    const percentages = completed.map((item) => item.percentage as number);
+    return {
+      filters: { from, to },
+      summary: {
+        totalAttempts: attempts.length,
+        completedAttempts: completed.length,
+        averagePercentage: average(percentages),
+        bestScore: percentages.length ? Math.max(...percentages) : null,
+        latestResult: history[0] ?? null,
+      },
+      history,
+    };
   },
 };

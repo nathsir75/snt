@@ -182,6 +182,7 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
           <div class="quick-links">
             <a routerLink="/student/my-course"     class="quick-link card"><span class="quick-link__icon">📚</span><span class="quick-link__label">My Course</span></a>
             <a routerLink="/student/quizzes"       class="quick-link card"><span class="quick-link__icon">?</span><span class="quick-link__label">Daily Quiz</span></a>
+            <a routerLink="/student/quiz-history"  class="quick-link card"><span class="quick-link__icon">%</span><span class="quick-link__label">Quiz History</span></a>
             <a routerLink="/student/my-attendance" class="quick-link card"><span class="quick-link__icon">✅</span><span class="quick-link__label">Attendance</span></a>
             <a routerLink="/student/schedule"      class="quick-link card"><span class="quick-link__icon">📅</span><span class="quick-link__label">Schedule</span></a>
             <a routerLink="/student/fees"          class="quick-link card"><span class="quick-link__icon">💰</span><span class="quick-link__label">Fees</span></a>

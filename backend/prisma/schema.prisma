@@ -679,6 +679,8 @@ model DailyQuiz {
   questions       DailyQuizQuestion[]
   attempts        DailyQuizAttempt[]
 
+  @@index([scheduledAt])
+  @@index([batchId, archivedAt, isPublished])
   @@index([batchId, scheduledAt])
   @@index([branchId])
   @@index([createdByUserId])
@@ -732,6 +734,9 @@ model DailyQuizAttempt {
   answers       DailyQuizAnswer[]
 
   @@unique([quizId, studentId])
+  @@index([quizId, status])
+  @@index([quizId, studentId, status])
+  @@index([branchId, startedAt])
   @@index([studentId, startedAt])
 }
 
@@ -748,6 +753,7 @@ model DailyQuizAnswer {
   selectedOption   DailyQuizOption?  @relation(fields: [selectedOptionId], references: [id])
 
   @@unique([attemptId, questionId])
+  @@index([questionId])
 }
 
 model BranchContentItem {

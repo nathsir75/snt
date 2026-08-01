@@ -91,6 +91,42 @@ export interface DailyQuizSummary {
   batch: { id: number; name: string; branch: { id: number; name: string }; course: { id: number; name: string } };
 }
 
+export interface TeacherQuizReport {
+  summary: {
+    totalQuizzesPublished: number;
+    totalAttempts: number;
+    completedAttempts: number;
+    possibleAttempts: number;
+    participationRate: number;
+    classAveragePercentage: number | null;
+  };
+  quizzes: {
+    id: number;
+    title: string;
+    topic: string | null;
+    quizDate: string;
+    scheduledAt: string;
+    closesAt: string;
+    batch: { id: number; name: string; branch: { id: number; name: string }; course: { id: number; name: string } };
+    questionCount: number;
+    summary: { enrolledStudents: number; attempts: number; completedAttempts: number; participationRate: number; averagePercentage: number | null };
+    students: { studentId: number; fullName: string; email: string | null; mobile: string | null; score: number | null; totalPoints: number | null; percentage: number | null; status: string; submittedAt: string | null; startedAt: string | null; resultStatus: string }[];
+  }[];
+  students: {
+    id: number;
+    fullName: string;
+    email: string | null;
+    mobile: string | null;
+    assignedQuizzes: number;
+    attempted: number;
+    participationRate: number;
+    averagePercentage: number | null;
+    latest: any | null;
+    trend: number | null;
+    history: any[];
+  }[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class TeacherService {
   private readonly api = inject(ApiService);
@@ -184,5 +220,13 @@ export class TeacherService {
 
   archiveDailyQuiz(id: number): Observable<DailyQuizSummary> {
     return this.api.delete<DailyQuizSummary>(`/daily-quizzes/${id}`);
+  }
+
+  getDailyQuizReport(params: { batchId?: number | null; from?: string; to?: string }): Observable<TeacherQuizReport> {
+    const query: Record<string, string> = {};
+    if (params.batchId) query['batchId'] = String(params.batchId);
+    if (params.from) query['from'] = params.from;
+    if (params.to) query['to'] = params.to;
+    return this.api.get<TeacherQuizReport>('/daily-quizzes/teacher/report', query);
   }
 }

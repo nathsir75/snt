@@ -99,6 +99,7 @@ export const TEACHER_NAV: NavItem[] = [
   { label: 'Schedule',     icon: '📅', route: '/teacher/schedule',     group: 'Teaching' },
   { label: 'Content',      icon: '🖥️', route: '/teacher/content',      group: 'Teaching' },
   { label: 'Daily Quiz',   icon: '?',  route: '/teacher/quizzes',      group: 'Teaching' },
+  { label: 'Quiz Reports', icon: '%',  route: '/teacher/quiz-reports', group: 'Teaching' },
   { label: 'Alerts',       icon: '🔔', route: '/teacher/alerts',       group: 'Notifications' },
 ];
 
@@ -106,6 +107,7 @@ export const TEACHER_NAV: NavItem[] = [
 export const STUDENT_NAV: NavItem[] = [
   { label: 'Dashboard',    icon: '🏠', route: '/student/dashboard',     group: 'Core' },
   { label: 'My Course',    icon: '📚', route: '/student/my-course',     group: 'Learning' },
+  { label: 'Quiz History', icon: '%',  route: '/student/quiz-history',  group: 'Learning' },
   { label: 'Attendance',   icon: '✅', route: '/student/my-attendance', group: 'Learning' },
   { label: 'Schedule',     icon: '📅', route: '/student/schedule',      group: 'Learning' },
   { label: 'Fees',         icon: '💰', route: '/student/fees',          group: 'Finance' },

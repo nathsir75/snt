@@ -66,6 +66,32 @@ export interface StudentDailyQuiz {
   attempt: { id: number; status: string; score: number; totalPoints: number; expiresAt: string; submittedAt: string | null } | null;
 }
 
+export interface StudentQuizHistory {
+  summary: {
+    totalAttempts: number;
+    completedAttempts: number;
+    averagePercentage: number | null;
+    bestScore: number | null;
+    latestResult: any | null;
+  };
+  history: {
+    attemptId: number;
+    quizId: number;
+    title: string;
+    topic: string | null;
+    quizDate: string;
+    scheduledAt: string | null;
+    batch: { id: number; name: string; course: { id: number; name: string } } | null;
+    score: number;
+    totalPoints: number;
+    percentage: number | null;
+    status: string;
+    startedAt: string;
+    submittedAt: string | null;
+    resultStatus: string;
+  }[];
+}
+
 export interface StudentSession {
   id: number;
   title: string;
@@ -241,6 +267,12 @@ export class StudentService {
   }
   submitDailyQuizAttempt(id: number, answers: Record<string, unknown>): Observable<any> {
     return this.api.post<any>(`/daily-quizzes/attempts/${id}/submit`, { answers });
+  }
+  getDailyQuizHistory(params: { from?: string; to?: string }): Observable<StudentQuizHistory> {
+    const query: Record<string, string> = {};
+    if (params.from) query['from'] = params.from;
+    if (params.to) query['to'] = params.to;
+    return this.api.get<StudentQuizHistory>('/daily-quizzes/student/history', query);
   }
 
   // Attendance
