@@ -9,12 +9,12 @@ const router = Router();
 router.use(authMiddleware, branchScope);
 
 // Static routes before dynamic /:mediaAssetId
-router.get('/my-files', requireRole('super_admin', 'branch_admin'), uploadGatewayController.listMyFiles);
+router.get('/my-files', requireRole('super_admin', 'branch_admin', 'teacher'), uploadGatewayController.listMyFiles);
 
 // File upload — multer middleware applied inline
 router.post(
   '/file',
-  requireRole('super_admin', 'branch_admin'),
+  requireRole('super_admin', 'branch_admin', 'teacher'),
   upload.single('file'),
   uploadGatewayController.uploadFile,
 );
@@ -22,13 +22,13 @@ router.post(
 // Dynamic routes
 router.delete(
   '/file/:mediaAssetId',
-  requireRole('super_admin', 'branch_admin'),
+  requireRole('super_admin', 'branch_admin', 'teacher'),
   uploadGatewayController.deleteFile,
 );
 
 router.patch(
   '/file/:mediaAssetId/replace',
-  requireRole('super_admin', 'branch_admin'),
+  requireRole('super_admin', 'branch_admin', 'teacher'),
   upload.single('file'),
   uploadGatewayController.replaceFile,
 );

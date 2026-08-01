@@ -1,14 +1,118 @@
 import { Component, inject, signal, OnInit, ChangeDetectionStrategy } from '@angular/core';
-import { TeacherService, TeacherBatch, CourseContent, Session } from '../teacher.service';
+import { FormsModule } from '@angular/forms';
+import { TeacherService, TeacherBatch, CourseContent, Session, BatchMaterial } from '../teacher.service';
+import { MediaService } from '../../media-library/media.service';
+import { UploadCategory } from '../../media-library/media.models';
+
+type MaterialMode = 'upload' | 'link';
 
 @Component({
   selector: 'snt-teacher-content',
   standalone: true,
+  imports: [FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page-header">
-      <div><h1>Course Content</h1><p>Published content for your assigned courses</p></div>
+      <div><h1>Study Materials</h1><p>Publish batch-specific resources for your assigned students</p></div>
     </div>
+
+    <section class="material-panel card">
+      <div class="material-panel__header">
+        <div>
+          <h2>Publish material</h2>
+          <p>Students only see published materials for their active enrolled batch.</p>
+        </div>
+      </div>
+
+      <div class="material-form">
+        <label class="field field--wide">
+          <span>Batch *</span>
+          <select class="input" [(ngModel)]="materialForm.batchId" (ngModelChange)="loadMaterialsForSelectedBatch()">
+            <option [ngValue]="null">Select assigned batch</option>
+            @for (batch of batches(); track batch.id) {
+              <option [ngValue]="batch.id">{{ batch.name }} - {{ batch.course.name }} ({{ batch.branch.name }})</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Title *</span>
+          <input class="input" [(ngModel)]="materialForm.title" placeholder="Example: Week 2 practice worksheet" />
+        </label>
+
+        <label class="field">
+          <span>Type</span>
+          <select class="input" [(ngModel)]="materialForm.materialType">
+            <option value="pdf">PDF</option>
+            <option value="ppt">Presentation</option>
+            <option value="document">Document</option>
+            <option value="video">Video</option>
+            <option value="image">Image</option>
+            <option value="link">Link</option>
+          </select>
+        </label>
+
+        <label class="field field--wide">
+          <span>Description</span>
+          <textarea class="input" rows="3" [(ngModel)]="materialForm.description" placeholder="Short note for students"></textarea>
+        </label>
+
+        <div class="mode-toggle">
+          <button class="mode-btn" [class.mode-btn--active]="materialMode() === 'upload'" (click)="materialMode.set('upload')" type="button">Upload file</button>
+          <button class="mode-btn" [class.mode-btn--active]="materialMode() === 'link'" (click)="materialMode.set('link')" type="button">Add link</button>
+        </div>
+
+        @if (materialMode() === 'upload') {
+          <label class="field field--wide">
+            <span>File *</span>
+            <input class="input" type="file" (change)="onFileSelected($event)" />
+            <small>Supported by type: PDF, PPT, document, image, or video.</small>
+          </label>
+        } @else {
+          <label class="field field--wide">
+            <span>Link *</span>
+            <input class="input" [(ngModel)]="materialForm.externalUrl" placeholder="https://..." />
+          </label>
+        }
+      </div>
+
+      @if (materialError()) {
+        <div class="form-error">{{ materialError() }}</div>
+      }
+
+      <div class="material-actions">
+        <button class="btn btn-primary" [disabled]="savingMaterial()" (click)="publishMaterial()">
+          {{ savingMaterial() ? 'Publishing...' : 'Publish Material' }}
+        </button>
+      </div>
+    </section>
+
+    <section class="materials-list card">
+      <div class="list-header">
+        <h2>Published batch materials</h2>
+        <span>{{ materials().length }} item{{ materials().length === 1 ? '' : 's' }}</span>
+      </div>
+      @if (!materialForm.batchId) {
+        <p class="text-muted text-sm">Select a batch to review its materials.</p>
+      } @else if (materialsLoading()) {
+        <p class="text-muted text-sm">Loading materials...</p>
+      } @else if (materials().length === 0) {
+        <p class="text-muted text-sm">No materials published for this batch yet.</p>
+      } @else {
+        <div class="material-items">
+          @for (item of materials(); track item.id) {
+            <a class="material-item" [href]="materialUrl(item)" target="_blank" rel="noopener">
+              <span class="material-item__type">{{ item.materialType }}</span>
+              <span class="material-item__body">
+                <strong>{{ item.title }}</strong>
+                @if (item.description) { <small>{{ item.description }}</small> }
+              </span>
+              <span class="material-item__status">Published</span>
+            </a>
+          }
+        </div>
+      }
+    </section>
 
     <!-- Course tabs (one per unique course across batches) -->
     <div class="course-tabs">
@@ -80,6 +184,28 @@ import { TeacherService, TeacherBatch, CourseContent, Session } from '../teacher
   styles: [`
     .page-state { padding: 40px; text-align: center; color: var(--color-text-muted); }
     .page-state--error { color: var(--color-danger); }
+    .material-panel, .materials-list { margin-bottom: 18px; }
+    .material-panel__header h2, .list-header h2 { font-size: var(--font-size-lg); margin: 0 0 4px; }
+    .material-panel__header p { color: var(--color-text-muted); font-size: var(--font-size-sm); margin: 0 0 16px; }
+    .material-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .field { display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-xs); font-weight: 700; text-transform: uppercase; color: var(--color-text-muted); }
+    .field--wide { grid-column: span 2; }
+    .field small { text-transform: none; font-weight: 500; color: var(--color-text-muted); }
+    .input { width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 9px 10px; background: var(--color-surface); font-size: var(--font-size-sm); }
+    .mode-toggle { display: flex; align-items: end; gap: 8px; }
+    .mode-btn { border: 1px solid var(--color-border); background: var(--color-surface); border-radius: var(--radius-md); padding: 9px 12px; cursor: pointer; }
+    .mode-btn--active { border-color: var(--layout-accent, #0d9488); background: var(--layout-accent-light, #ccfbf1); color: var(--layout-accent, #0d9488); font-weight: 700; }
+    .material-actions { margin-top: 14px; display: flex; justify-content: flex-end; }
+    .form-error { margin-top: 12px; padding: 10px 12px; border: 1px solid #fecaca; border-radius: var(--radius-md); background: #fef2f2; color: var(--color-danger); font-size: var(--font-size-sm); }
+    .list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .list-header span { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+    .material-items { display: flex; flex-direction: column; gap: 8px; }
+    .material-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: inherit; text-decoration: none; }
+    .material-item:hover { border-color: var(--layout-accent, #0d9488); }
+    .material-item__type { min-width: 78px; text-transform: uppercase; font-size: var(--font-size-xs); font-weight: 700; color: var(--layout-accent, #0d9488); }
+    .material-item__body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .material-item__body small { color: var(--color-text-muted); }
+    .material-item__status { font-size: var(--font-size-xs); color: var(--color-success); }
     .course-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
     .course-tab {
       padding: 6px 14px;
@@ -119,11 +245,14 @@ import { TeacherService, TeacherBatch, CourseContent, Session } from '../teacher
     .session-card__items { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 8px; }
     .content-item { display: flex; align-items: center; gap: 10px; }
     .content-item__title { font-size: var(--font-size-sm); color: var(--layout-accent, #0d9488); text-decoration: underline; }
+    @media (max-width: 720px) { .field--wide { grid-column: auto; } .material-item { align-items: flex-start; flex-direction: column; } }
   `],
 })
 export class TeacherContentComponent implements OnInit {
   private readonly teacherSvc = inject(TeacherService);
+  private readonly mediaSvc = inject(MediaService);
 
+  readonly batches         = signal<TeacherBatch[]>([]);
   readonly courses         = signal<{ id: number; name: string; code: string }[]>([]);
   readonly courseContent   = signal<CourseContent | null>(null);
   readonly sessions        = signal<Session[]>([]);
@@ -131,15 +260,33 @@ export class TeacherContentComponent implements OnInit {
   readonly expandedSessions = signal<Set<number>>(new Set());
   readonly loading         = signal(false);
   readonly error           = signal<string | null>(null);
+  readonly materialMode    = signal<MaterialMode>('upload');
+  readonly materials       = signal<BatchMaterial[]>([]);
+  readonly materialsLoading = signal(false);
+  readonly savingMaterial  = signal(false);
+  readonly materialError   = signal<string | null>(null);
+  selectedFile: File | null = null;
+  materialForm: {
+    batchId: number | null;
+    title: string;
+    description: string;
+    materialType: UploadCategory | 'link';
+    externalUrl: string;
+  } = { batchId: null, title: '', description: '', materialType: 'pdf', externalUrl: '' };
 
   ngOnInit(): void {
     this.teacherSvc.getMyBatches().subscribe({
       next: (batches) => {
+        this.batches.set(batches);
         // Deduplicate courses across batches
         const seen = new Map<number, { id: number; name: string; code: string }>();
         batches.forEach((b) => seen.set(b.course.id, b.course));
         const uniqueCourses = [...seen.values()];
         this.courses.set(uniqueCourses);
+        if (batches.length > 0) {
+          this.materialForm.batchId = batches[0].id;
+          this.loadMaterialsForSelectedBatch();
+        }
         if (uniqueCourses.length > 0) this.selectCourse(uniqueCourses[0].id);
       },
     });
@@ -172,5 +319,93 @@ export class TeacherContentComponent implements OnInit {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }
+
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.selectedFile = input.files?.[0] ?? null;
+  }
+
+  loadMaterialsForSelectedBatch(): void {
+    if (!this.materialForm.batchId) {
+      this.materials.set([]);
+      return;
+    }
+    this.materialsLoading.set(true);
+    this.teacherSvc.getMaterialsByBatch(this.materialForm.batchId).subscribe({
+      next: (items) => { this.materials.set(items); this.materialsLoading.set(false); },
+      error: () => { this.materials.set([]); this.materialsLoading.set(false); },
+    });
+  }
+
+  publishMaterial(): void {
+    this.materialError.set(null);
+    if (!this.materialForm.batchId || !this.materialForm.title.trim()) {
+      this.materialError.set('Select a batch and enter a title.');
+      return;
+    }
+    if (this.materialMode() === 'upload' && !this.selectedFile) {
+      this.materialError.set('Choose a file to upload.');
+      return;
+    }
+    if (this.materialMode() === 'link' && !this.materialForm.externalUrl.trim()) {
+      this.materialError.set('Enter a valid material link.');
+      return;
+    }
+
+    const batch = this.batches().find((item) => item.id === this.materialForm.batchId);
+    if (!batch) {
+      this.materialError.set('Selected batch is not available.');
+      return;
+    }
+
+    this.savingMaterial.set(true);
+
+    const create = (mediaAssetId?: number | null) => {
+      this.teacherSvc.createMaterial({
+        batchId: this.materialForm.batchId!,
+        title: this.materialForm.title.trim(),
+        description: this.materialForm.description.trim() || undefined,
+        materialType: this.materialMode() === 'link' ? 'link' : this.materialForm.materialType,
+        mediaAssetId: mediaAssetId ?? null,
+        externalUrl: this.materialMode() === 'link' ? this.materialForm.externalUrl.trim() : null,
+        isPublished: true,
+      }).subscribe({
+        next: (item) => {
+          this.materials.update((items) => [item, ...items]);
+          this.materialForm.title = '';
+          this.materialForm.description = '';
+          this.materialForm.externalUrl = '';
+          this.selectedFile = null;
+          this.savingMaterial.set(false);
+        },
+        error: (err) => {
+          this.materialError.set(err.error?.error ?? 'Failed to publish material.');
+          this.savingMaterial.set(false);
+        },
+      });
+    };
+
+    if (this.materialMode() === 'link') {
+      create(null);
+      return;
+    }
+
+    this.mediaSvc.upload(this.selectedFile!, {
+      title: this.materialForm.title.trim(),
+      uploadCategory: this.materialForm.materialType as UploadCategory,
+      ownerScope: 'branch',
+      branchId: batch.branch.id,
+    }).subscribe({
+      next: (result) => create(result.asset.id),
+      error: (err) => {
+        this.materialError.set(err.error?.error ?? 'Failed to upload file.');
+        this.savingMaterial.set(false);
+      },
+    });
+  }
+
+  materialUrl(item: BatchMaterial): string {
+    return item.fileUrl || item.externalUrl || item.mediaAsset?.fileUrl || '#';
   }
 }

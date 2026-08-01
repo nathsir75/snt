@@ -58,6 +58,22 @@ export interface Session {
   contentItems: { id: number; type: string; title: string; fileUrl: string; isPreview: boolean }[];
 }
 
+export interface BatchMaterial {
+  id: number;
+  batchId: number;
+  branchId: number;
+  title: string;
+  description: string | null;
+  materialType: string;
+  fileUrl: string | null;
+  externalUrl: string | null;
+  isPublished: boolean;
+  createdAt: string;
+  mediaAsset: { id: number; title: string; mediaType: string; fileUrl: string; mimeType: string | null; fileSizeKb: number | null } | null;
+  createdBy: { id: number; name: string };
+  batch: { id: number; name: string; branch: { id: number; name: string }; course: { id: number; name: string; code: string } };
+}
+
 @Injectable({ providedIn: 'root' })
 export class TeacherService {
   private readonly api = inject(ApiService);
@@ -99,5 +115,22 @@ export class TeacherService {
 
   getSession(sessionId: number): Observable<Session> {
     return this.api.get<Session>(`/lms/session/${sessionId}`);
+  }
+
+  // ── Study Materials ───────────────────────────────────────────────────────
+  getMaterialsByBatch(batchId: number): Observable<BatchMaterial[]> {
+    return this.api.get<BatchMaterial[]>(`/batch-materials/batch/${batchId}`);
+  }
+
+  createMaterial(data: {
+    batchId: number;
+    title: string;
+    description?: string;
+    materialType: string;
+    mediaAssetId?: number | null;
+    externalUrl?: string | null;
+    isPublished?: boolean;
+  }): Observable<BatchMaterial> {
+    return this.api.post<BatchMaterial>('/batch-materials', data);
   }
 }

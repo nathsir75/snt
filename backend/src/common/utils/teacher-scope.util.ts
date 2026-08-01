@@ -1,6 +1,7 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../types';
 import { ROLES } from '../roles';
+import { hasGlobalScope } from './scope.util';
 
 /**
  * Returns the set of batchIds the teacher is assigned to.
@@ -18,7 +19,10 @@ export async function getTeacherBatchIds(user: AuthPayload): Promise<number[] | 
   }
 
   const assignments = await prisma.teacherBatchAssignment.findMany({
-    where:  { userId: user.userId, branchId: user.branchId as number },
+    where:  {
+      userId: user.userId,
+      ...(hasGlobalScope(user) ? {} : { branchId: user.branchId as number }),
+    },
     select: { batchId: true },
   });
 
@@ -52,7 +56,10 @@ export async function getTeacherCourseIds(user: AuthPayload): Promise<number[] |
   if (user.role !== ROLES.TEACHER) return null;
 
   const assignments = await prisma.teacherBatchAssignment.findMany({
-    where:   { userId: user.userId, branchId: user.branchId as number },
+    where:   {
+      userId: user.userId,
+      ...(hasGlobalScope(user) ? {} : { branchId: user.branchId as number }),
+    },
     include: { batch: { select: { courseId: true } } },
   });
 

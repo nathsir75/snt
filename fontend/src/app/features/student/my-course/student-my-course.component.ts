@@ -7,6 +7,7 @@ import {
   StudentCourseContent,
   StudentSession,
   ContentItem,
+  StudentBatchMaterial,
 } from '../student.service';
 
 const TYPE_ICON: Record<string, string> = {
@@ -111,6 +112,31 @@ const TYPE_ICON: Record<string, string> = {
             }
           </div>
         }
+
+        <section class="materials card">
+          <div class="materials__header">
+            <h2>Study materials</h2>
+            <span>{{ materials().length }} item{{ materials().length === 1 ? '' : 's' }}</span>
+          </div>
+          @if (materialsLoading()) {
+            <p class="text-muted text-sm">Loading materials...</p>
+          } @else if (materials().length === 0) {
+            <p class="text-muted text-sm">No study materials have been published for your batch yet.</p>
+          } @else {
+            <div class="material-list">
+              @for (item of materials(); track item.id) {
+                <a class="material-link" [href]="materialUrl(item)" target="_blank" rel="noopener noreferrer">
+                  <span class="content-item__icon">{{ typeIcon(item.materialType) }}</span>
+                  <span class="material-link__body">
+                    <strong>{{ item.title }}</strong>
+                    @if (item.description) { <small>{{ item.description }}</small> }
+                  </span>
+                  <span class="content-item__arrow">↗</span>
+                </a>
+              }
+            </div>
+          }
+        </section>
       }
     </div>
   `,
@@ -198,6 +224,15 @@ const TYPE_ICON: Record<string, string> = {
     .content-item__title { font-size: var(--font-size-sm); font-weight: 500; }
     .content-item__type { font-size: var(--font-size-xs); }
     .content-item__arrow { color: var(--layout-accent, #16a34a); font-size: var(--font-size-sm); flex-shrink: 0; }
+    .materials { margin-top: 8px; }
+    .materials__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .materials__header h2 { margin: 0; font-size: var(--font-size-lg); }
+    .materials__header span { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+    .material-list { display: flex; flex-direction: column; gap: 8px; }
+    .material-link { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: inherit; text-decoration: none; }
+    .material-link:hover { border-color: var(--layout-accent, #16a34a); background: var(--color-bg); }
+    .material-link__body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .material-link__body small { color: var(--color-text-muted); }
   `],
 })
 export class StudentMyCourseComponent implements OnInit {
@@ -206,8 +241,10 @@ export class StudentMyCourseComponent implements OnInit {
   readonly profile       = signal<StudentProfile | null>(null);
   readonly courseContent = signal<StudentCourseContent | null>(null);
   readonly sessions      = signal<StudentSession[]>([]);
+  readonly materials     = signal<StudentBatchMaterial[]>([]);
   readonly expanded      = signal<Set<number>>(new Set());
   readonly loading       = signal(true);
+  readonly materialsLoading = signal(false);
   readonly error         = signal<string | null>(null);
 
   readonly totalItems = () => this.sessions().reduce((s, sess) => s + sess.contentItems.length, 0);
@@ -226,6 +263,7 @@ export class StudentMyCourseComponent implements OnInit {
 
         // courseId is derived server-side from the student's batch enrollment.
         // The backend will 403 if the student tries any other courseId.
+        this.loadMaterials(res.activeBatch!.batchId);
         this.studentSvc.getCourseContent(courseId).subscribe({
           next: (data) => {
             this.courseContent.set(data.courseContent);
@@ -256,6 +294,18 @@ export class StudentMyCourseComponent implements OnInit {
       const next = new Set(set);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
+    });
+  }
+
+  materialUrl(item: StudentBatchMaterial): string {
+    return item.fileUrl || item.externalUrl || item.mediaAsset?.fileUrl || '#';
+  }
+
+  private loadMaterials(batchId: number): void {
+    this.materialsLoading.set(true);
+    this.studentSvc.getBatchMaterials(batchId).subscribe({
+      next: (items) => { this.materials.set(items); this.materialsLoading.set(false); },
+      error: () => { this.materials.set([]); this.materialsLoading.set(false); },
     });
   }
 }

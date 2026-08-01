@@ -58,6 +58,15 @@ export const usersController = {
     }
   },
 
+  getTrainerLinkCandidates: async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      res.json(await usersService.getTrainerLinkCandidates(req.user!));
+    } catch (error) {
+      console.error('[Users] Error fetching trainer link candidates:', error);
+      res.status(500).json({ error: 'Failed to fetch trainer link candidates' });
+    }
+  },
+
   updateUser: async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const id = Number(req.params.id);
@@ -117,11 +126,12 @@ function mapUserError(code: string, fallback: string): [number, string] {
     INVALID_STATUS:      [400, 'Invalid user status'],
     WEAK_PASSWORD:       [400, 'Password must be at least 8 characters'],
     INVALID_SCOPE:       [400, 'Invalid user scope'],
-    GLOBAL_SCOPE_FORBIDDEN: [400, 'Global scope is only allowed for Head Office staff roles'],
+    GLOBAL_SCOPE_FORBIDDEN: [400, 'Global scope is only allowed for Head Office staff roles and teachers'],
     BRANCH_REQUIRED:     [400, 'branchId is required for this role'],
     BRANCH_NOT_FOUND:    [404, 'Branch not found'],
     USER_NOT_FOUND:      [404, 'User not found'],
     EMAIL_TAKEN:         [409, 'A user with this email already exists'],
+    TRAINER_EMAIL_TAKEN: [409, 'Another trainer already uses this email'],
     CANNOT_DELETE_SELF:  [400, 'You cannot delete or archive your own account'],
   };
   return errorMap[code] ?? [500, fallback];

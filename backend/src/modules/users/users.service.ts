@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
 import { getBranchFilter, hasGlobalScope } from '../../common/utils/scope.util';
@@ -21,8 +22,9 @@ const USER_SELECT = {
 
 const VALID_STATUSES = new Set(['active', 'suspended', 'archived']);
 const VALID_SCOPES = new Set(['global', 'branch']);
-const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor']);
+const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor', 'teacher']);
 const MIN_PASSWORD_LENGTH = 8;
+type DbClient = typeof prisma | Prisma.TransactionClient;
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -69,24 +71,86 @@ async function validateRoleBranchAndScope(roleName: string, branchId?: number | 
   return { role, scope };
 }
 
-async function syncTeacherAssignmentsFromTrainer(userId: number, email: string, roleName: string, branchId: number | null | undefined) {
-  if (roleName !== 'teacher' || !branchId) return;
+async function syncTeacherAssignmentsFromTrainer(
+  userId: number,
+  email: string,
+  roleName: string,
+  branchId: number | null | undefined,
+  db: DbClient = prisma,
+) {
+  if (roleName !== 'teacher') return;
 
-  const trainer = await prisma.trainer.findUnique({
+  const trainer = await db.trainer.findUnique({
     where: { email: normalizeEmail(email) },
     include: { batchTrainers: { select: { batchId: true, batch: { select: { branchId: true } } } } },
   });
   if (!trainer) return;
 
   const batchIds = trainer.batchTrainers
-    .filter((assignment) => assignment.batch.branchId === branchId)
+    .filter((assignment) => branchId == null || assignment.batch.branchId === branchId)
     .map((assignment) => assignment.batchId);
 
-  await Promise.all(batchIds.map((batchId) => prisma.teacherBatchAssignment.upsert({
+  await Promise.all(batchIds.map((batchId) => db.teacherBatchAssignment.upsert({
     where: { userId_batchId: { userId, batchId } },
-    create: { userId, batchId, branchId },
-    update: { branchId },
+    create: { userId, batchId, branchId: trainer.branchId },
+    update: { branchId: trainer.branchId },
   })));
+}
+
+async function attachTeacherLinks<T extends Array<any>>(users: T): Promise<T> {
+  const teacherUsers = users.filter((user) => {
+    const roleName = typeof user.role === 'string' ? user.role : user.role?.name;
+    return roleName === 'teacher';
+  });
+  const emails = teacherUsers.map((user) => user.email).filter(Boolean);
+  if (!emails.length) return users;
+
+  const trainers = await prisma.trainer.findMany({
+    where: { email: { in: emails } },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      branch: { select: { id: true, name: true, city: true } },
+      batchTrainers: { select: { id: true } },
+    },
+  });
+  const byEmail = new Map(trainers.map((trainer) => [normalizeEmail(trainer.email ?? ''), trainer]));
+
+  return users.map((user) => {
+    const roleName = typeof user.role === 'string' ? user.role : user.role?.name;
+    if (roleName !== 'teacher') return user;
+    const trainer = byEmail.get(normalizeEmail(user.email));
+    return {
+      ...user,
+      trainerLink: trainer ? {
+        id: trainer.id,
+        fullName: trainer.fullName,
+        email: trainer.email,
+        branch: trainer.branch,
+        batchCount: trainer.batchTrainers.length,
+      } : null,
+    };
+  }) as T;
+}
+
+async function syncLinkedTrainerEmail(
+  tx: Prisma.TransactionClient,
+  existingUser: { email: string; role: { name: string } },
+  nextEmail: string,
+) {
+  if (existingUser.role.name !== 'teacher' || nextEmail === existingUser.email) return;
+
+  const linkedTrainer = await tx.trainer.findUnique({ where: { email: existingUser.email } });
+  if (!linkedTrainer) return;
+
+  const duplicateTrainer = await tx.trainer.findUnique({ where: { email: nextEmail } });
+  if (duplicateTrainer && duplicateTrainer.id !== linkedTrainer.id) throw new Error('TRAINER_EMAIL_TAKEN');
+
+  await tx.trainer.update({
+    where: { id: linkedTrainer.id },
+    data: { email: nextEmail },
+  });
 }
 
 async function userHasLinkedRecords(userId: number): Promise<boolean> {
@@ -121,18 +185,56 @@ export const usersService = {
       ];
     }
 
-    return prisma.user.findMany({
+    const users = await prisma.user.findMany({
       where: filter,
       orderBy: { createdAt: 'desc' },
       select: USER_SELECT,
     });
+    return attachTeacherLinks(users);
   },
 
   getUserById: async (userId: number) => {
-    return prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
       select: USER_SELECT,
     });
+    if (!user) return null;
+    const [decorated] = await attachTeacherLinks([user]);
+    return decorated;
+  },
+
+  getTrainerLinkCandidates: async (user: AuthPayload) => {
+    const filter = getBranchFilter(user);
+    const trainers = await prisma.trainer.findMany({
+      where: { ...filter, email: { not: null } },
+      orderBy: { fullName: 'asc' },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        isActive: true,
+        branch: { select: { id: true, name: true, city: true } },
+        batchTrainers: { select: { id: true } },
+      },
+    });
+    if (!trainers.length) return [];
+
+    const trainerEmails = trainers.map((trainer) => trainer.email).filter((email): email is string => !!email);
+    const users = await prisma.user.findMany({
+      where: { email: { in: trainerEmails } },
+      select: { id: true, name: true, email: true, role: { select: { name: true } } },
+    });
+    const userByEmail = new Map(users.map((candidate) => [normalizeEmail(candidate.email), candidate]));
+
+    return trainers.map((trainer) => ({
+      id: trainer.id,
+      fullName: trainer.fullName,
+      email: trainer.email,
+      isActive: trainer.isActive,
+      branch: trainer.branch,
+      batchCount: trainer.batchTrainers.length,
+      linkedUser: trainer.email ? userByEmail.get(normalizeEmail(trainer.email)) ?? null : null,
+    }));
   },
 
   createUser: async (data: {
@@ -168,7 +270,8 @@ export const usersService = {
     });
 
     await syncTeacherAssignmentsFromTrainer(user.id, email, data.role, scope === 'global' ? null : data.branchId);
-    return { user, initialPassword: data.password ? undefined : password };
+    const [decorated] = await attachTeacherLinks([user]);
+    return { user: decorated, initialPassword: data.password ? undefined : password };
   },
 
   updateUser: async (id: number, data: {
@@ -193,21 +296,28 @@ export const usersService = {
     }
     if (data.status !== undefined && !VALID_STATUSES.has(data.status)) throw new Error('INVALID_STATUS');
 
-    const user = await prisma.user.update({
-      where: { id },
-      data: {
-        ...(data.name !== undefined && { name: cleanText(data.name) }),
-        ...(data.email !== undefined && { email: nextEmail }),
-        ...(data.role !== undefined && { roleId: role.id }),
-        scope,
-        branchId: scope === 'global' ? null : branchId,
-        ...(data.status !== undefined && statusFlags(data.status)),
-      },
-      select: USER_SELECT,
+    const user = await prisma.$transaction(async (tx) => {
+      await syncLinkedTrainerEmail(tx, existing, nextEmail);
+
+      const updated = await tx.user.update({
+        where: { id },
+        data: {
+          ...(data.name !== undefined && { name: cleanText(data.name) }),
+          ...(data.email !== undefined && { email: nextEmail }),
+          ...(data.role !== undefined && { roleId: role.id }),
+          scope,
+          branchId: scope === 'global' ? null : branchId,
+          ...(data.status !== undefined && statusFlags(data.status)),
+        },
+        select: USER_SELECT,
+      });
+
+      await syncTeacherAssignmentsFromTrainer(updated.id, updated.email, roleName, scope === 'global' ? null : branchId, tx);
+      return updated;
     });
 
-    await syncTeacherAssignmentsFromTrainer(user.id, user.email, roleName, scope === 'global' ? null : branchId);
-    return user;
+    const [decorated] = await attachTeacherLinks([user]);
+    return decorated;
   },
 
   resetPassword: async (id: number, password?: string) => {

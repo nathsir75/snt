@@ -70,8 +70,18 @@ export const batchService = {
     if (user.role === ROLES.TEACHER) {
       const batchIds = await getTeacherBatchIds(user);
       console.log(`[BatchService] Teacher fetch — userId=${user.userId}, batchIds=[${batchIds?.join(', ')}]`);
+      if (batchIds === null) {
+        return prisma.batch.findMany({
+          where: getBranchFilter(user),
+          orderBy: { startDate: 'desc' },
+          select: BATCH_SELECT,
+        });
+      }
       return prisma.batch.findMany({
-        where: { id: { in: batchIds ?? [] }, branchId: user.branchId as number },
+        where: {
+          id: { in: batchIds },
+          ...(hasGlobalScope(user) ? {} : { branchId: user.branchId as number }),
+        },
         orderBy: { startDate: 'desc' },
         select: BATCH_SELECT,
       });
@@ -96,10 +106,15 @@ export const batchService = {
   // Teacher dashboard summary — assigned batches with student counts
   getTeacherSummary: async (user: AuthPayload) => {
     const batchIds = await getTeacherBatchIds(user);
-    if (!batchIds) throw new Error('ACCESS_DENIED');
+    const where = batchIds === null
+      ? getBranchFilter(user)
+      : {
+          id: { in: batchIds },
+          ...(hasGlobalScope(user) ? {} : { branchId: user.branchId as number }),
+        };
 
     const batches = await prisma.batch.findMany({
-      where: { id: { in: batchIds }, branchId: user.branchId as number },
+      where,
       select: {
         ...BATCH_SELECT,
         batchStudents: { select: { id: true, status: true } },

@@ -38,6 +38,19 @@ export interface ContentItem {
   thumbnailUrl: string | null;
 }
 
+export interface StudentBatchMaterial {
+  id: number;
+  batchId: number;
+  title: string;
+  description: string | null;
+  materialType: string;
+  fileUrl: string | null;
+  externalUrl: string | null;
+  createdAt: string;
+  mediaAsset: { id: number; title: string; mediaType: string; fileUrl: string; mimeType: string | null; fileSizeKb: number | null } | null;
+  createdBy: { id: number; name: string };
+}
+
 export interface StudentSession {
   id: number;
   title: string;
@@ -198,6 +211,9 @@ export class StudentService {
   }
   getSession(sessionId: number): Observable<StudentSession> {
     return this.api.get(`/lms/session/${sessionId}`);
+  }
+  getBatchMaterials(batchId: number): Observable<StudentBatchMaterial[]> {
+    return this.api.get<StudentBatchMaterial[]>(`/batch-materials/batch/${batchId}`);
   }
 
   // Attendance

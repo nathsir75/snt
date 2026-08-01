@@ -23,6 +23,7 @@ interface UserRow {
   createdAt: string;
   updatedAt: string;
   branch: { id: number; name: string; city?: string } | null;
+  trainerLink?: TrainerLink | null;
 }
 
 interface BranchOption {
@@ -42,6 +43,19 @@ interface UserForm {
   password?: string;
 }
 
+interface TrainerLink {
+  id: number;
+  fullName: string;
+  email: string | null;
+  branch: { id: number; name: string; city?: string };
+  batchCount: number;
+}
+
+interface TrainerLinkCandidate extends TrainerLink {
+  isActive: boolean;
+  linkedUser: { id: number; name: string; email: string; role: { name: string } } | null;
+}
+
 type LoadState = 'loading' | 'error' | 'ready';
 type SecretNotice = { title: string; password: string; email: string } | null;
 
@@ -53,7 +67,7 @@ const ROLES = [
   { value: 'student', label: 'Student' },
 ];
 
-const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor']);
+const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor', 'teacher']);
 
 @Component({
   selector: 'snt-users',
@@ -177,6 +191,9 @@ const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor'
         <label class="form-field">
           <span>Email *</span>
           <input class="form-input" type="email" [(ngModel)]="form.email" />
+          @if (form.id && form.role === 'teacher' && editingTrainerLink()) {
+            <small class="field-help">Changing this login email will also update the linked Trainer email so portal access remains connected.</small>
+          }
         </label>
         <label class="form-field">
           <span>Role *</span>
@@ -186,14 +203,15 @@ const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor'
             }
           </select>
         </label>
-        <label class="form-field">
-          <span>Scope / Branch</span>
+        <label class="form-field form-field--wide">
+          <span>Access scope</span>
           <select class="form-input" [(ngModel)]="scopeSelection" (ngModelChange)="onScopeSelectionChange($event)">
             @if (canBeGlobal(form.role)) {
               <option value="global">Head Office / Global</option>
             }
-            <option value="branch">Branch specific</option>
+            <option value="branch">Branch-specific</option>
           </select>
+          <small class="field-help">{{ scopeHelpText() }}</small>
         </label>
         @if (form.scope === 'branch') {
           <label class="form-field">
@@ -207,8 +225,41 @@ const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor'
           </label>
         } @else {
           <div class="scope-note">
-            This account can work across all branches. Use only for Head Office staff.
+            This account can work across franchise branches. Use only for approved Head Office staff or global teachers.
           </div>
+        }
+        @if (form.role === 'teacher') {
+          <section class="teacher-link-panel form-field--wide">
+            <div>
+              <strong>Trainer access link</strong>
+              @if (form.id && editingTrainerLink()) {
+                <p>
+                  Linked to Trainer {{ editingTrainerLink()!.fullName }}
+                  in {{ editingTrainerLink()!.branch.name }} with {{ editingTrainerLink()!.batchCount }} batch assignment{{ editingTrainerLink()!.batchCount === 1 ? '' : 's' }}.
+                </p>
+              } @else {
+                <p>Teacher portal access is linked by matching this login email to a Trainer email.</p>
+              }
+            </div>
+            @if (!form.id) {
+              <label class="form-field">
+                <span>Create from trainer</span>
+                <select class="form-input" [(ngModel)]="selectedTrainerId" (ngModelChange)="applyTrainerCandidate($event)">
+                  <option [ngValue]="null">Select unlinked trainer</option>
+                  @for (trainer of unlinkedTrainerCandidates(); track trainer.id) {
+                    <option [ngValue]="trainer.id">
+                      {{ trainer.fullName }} - {{ trainer.email }} ({{ trainer.branch.name }})
+                    </option>
+                  }
+                </select>
+                <small class="field-help">This fills the Teacher login with the Trainer email. Initial credentials are issued only after saving.</small>
+              </label>
+            } @else if (!editingTrainerLink()) {
+              <div class="link-warning">
+                No Trainer record currently matches this Teacher email. To link access, change the email to an existing Trainer email or create the Teacher User from an unlinked Trainer.
+              </div>
+            }
+          </section>
         }
         @if (form.id) {
           <label class="form-field">
@@ -220,9 +271,10 @@ const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor'
             </select>
           </label>
         } @else {
-          <label class="form-field">
+          <label class="form-field password-field">
             <span>Initial Password</span>
             <input class="form-input" [(ngModel)]="form.password" placeholder="Leave blank to generate" />
+            <small class="field-help">Leave blank to generate a secure temporary password.</small>
           </label>
         }
       </div>
@@ -274,14 +326,21 @@ const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor'
     .pagination-info { font-size: var(--font-size-sm); color: var(--color-text-muted); }
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
     .form-field { display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--color-text-muted); }
-    .scope-note { align-self: end; padding: 10px 12px; border: 1px solid #bfdbfe; border-radius: var(--radius-md); background: #eff6ff; color: #1e40af; font-size: var(--font-size-sm); line-height: 1.4; }
+    .form-field--wide { grid-column: span 2; }
+    .field-help { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--color-text-muted); line-height: 1.35; }
+    .scope-note { align-self: stretch; padding: 10px 12px; border: 1px solid #bfdbfe; border-radius: var(--radius-md); background: #eff6ff; color: #1e40af; font-size: var(--font-size-sm); line-height: 1.4; }
+    .password-field { align-self: start; }
+    .teacher-link-panel { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 12px; background: var(--color-bg); display: grid; gap: 10px; }
+    .teacher-link-panel strong { color: var(--color-text); font-size: var(--font-size-sm); text-transform: none; letter-spacing: 0; }
+    .teacher-link-panel p { margin: 4px 0 0; color: var(--color-text-muted); font-size: var(--font-size-sm); font-weight: 500; text-transform: none; letter-spacing: 0; line-height: 1.4; }
+    .link-warning { padding: 10px 12px; border: 1px solid #fed7aa; border-radius: var(--radius-md); background: #fff7ed; color: #9a3412; font-size: var(--font-size-sm); font-weight: 600; text-transform: none; letter-spacing: 0; line-height: 1.4; }
     .drawer-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border); }
     .notice { padding: 10px 12px; border: 1px solid #bfdbfe; border-radius: var(--radius-md); background: #eff6ff; color: #1e40af; font-size: var(--font-size-sm); }
     .notice--error { border-color: #fecaca; background: #fef2f2; color: var(--color-danger); }
     .secret-panel { position: fixed; right: 24px; bottom: 24px; z-index: 250; width: min(460px, calc(100vw - 48px)); display: flex; align-items: center; gap: 10px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 14px; }
     .secret-panel p { color: var(--color-text-muted); font-size: var(--font-size-xs); margin: 2px 0 8px; }
     .secret-panel code { display: inline-block; padding: 4px 8px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
-    @media (max-width: 720px) { .row-actions { flex-wrap: wrap; justify-content: flex-start; } .secret-panel { left: 12px; right: 12px; bottom: 12px; width: auto; flex-wrap: wrap; } }
+    @media (max-width: 720px) { .form-field--wide { grid-column: auto; } .row-actions { flex-wrap: wrap; justify-content: flex-start; } .secret-panel { left: 12px; right: 12px; bottom: 12px; width: auto; flex-wrap: wrap; } }
   `],
 })
 export class UsersComponent implements OnInit {
@@ -292,6 +351,7 @@ export class UsersComponent implements OnInit {
   readonly state = signal<LoadState>('loading');
   readonly all = signal<UserRow[]>([]);
   readonly branches = signal<BranchOption[]>([]);
+  readonly trainerCandidates = signal<TrainerLinkCandidate[]>([]);
   readonly page = signal(1);
   readonly drawerOpen = signal(false);
   readonly saving = signal(false);
@@ -306,6 +366,7 @@ export class UsersComponent implements OnInit {
   statusFilter = '';
   branchFilter: number | null = null;
   scopeSelection: 'global' | 'branch' = 'global';
+  selectedTrainerId: number | null = null;
   form: UserForm = this.emptyForm();
 
   readonly filtered = computed(() => {
@@ -325,6 +386,7 @@ export class UsersComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadBranches();
+    this.loadTrainerCandidates();
     this.load();
   }
 
@@ -344,9 +406,16 @@ export class UsersComponent implements OnInit {
       .subscribe({ next: (branches) => this.branches.set(branches) });
   }
 
+  loadTrainerCandidates(): void {
+    this.api.get<TrainerLinkCandidate[]>('/users/trainer-link-candidates')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: (trainers) => this.trainerCandidates.set(trainers) });
+  }
+
   openCreate(): void {
     this.form = this.emptyForm();
     this.scopeSelection = this.form.scope;
+    this.selectedTrainerId = null;
     this.formError.set(null);
     this.drawerOpen.set(true);
   }
@@ -362,6 +431,7 @@ export class UsersComponent implements OnInit {
       status: user.status ?? (user.isActive ? 'active' : 'suspended'),
     };
     this.scopeSelection = this.form.scope;
+    this.selectedTrainerId = null;
     this.formError.set(null);
     this.drawerOpen.set(true);
   }
@@ -395,7 +465,7 @@ export class UsersComponent implements OnInit {
       return;
     }
     if (this.form.scope === 'global' && !this.canBeGlobal(this.form.role)) {
-      this.formError.set('Global scope is only for Head Office staff roles.');
+      this.formError.set('Global scope is only for approved Head Office staff roles and teachers.');
       return;
     }
 
@@ -409,6 +479,7 @@ export class UsersComponent implements OnInit {
         .subscribe({
           next: (user: UserRow) => {
             this.upsert(user);
+            this.loadTrainerCandidates();
             this.bannerType.set('info');
             this.banner.set('User saved.');
             this.closeDrawer();
@@ -426,6 +497,7 @@ export class UsersComponent implements OnInit {
       .subscribe({
         next: (result: { user: UserRow; initialPassword?: string }) => {
           this.upsert(result.user);
+          this.loadTrainerCandidates();
           if (result.initialPassword) {
             this.secretNotice.set({ title: 'Initial credential issued', email: result.user.email, password: result.initialPassword });
           }
@@ -517,6 +589,34 @@ export class UsersComponent implements OnInit {
 
   canBeGlobal(role: string): boolean {
     return GLOBAL_ALLOWED_ROLES.has(role);
+  }
+
+  editingTrainerLink(): TrainerLink | null {
+    if (!this.form.id) return null;
+    return this.all().find((user) => user.id === this.form.id)?.trainerLink ?? null;
+  }
+
+  unlinkedTrainerCandidates(): TrainerLinkCandidate[] {
+    return this.trainerCandidates().filter((trainer) => trainer.isActive && !trainer.linkedUser && !!trainer.email);
+  }
+
+  applyTrainerCandidate(trainerId: number | null): void {
+    this.selectedTrainerId = trainerId;
+    const trainer = this.trainerCandidates().find((item) => item.id === trainerId);
+    if (!trainer || !trainer.email) return;
+
+    this.form.role = 'teacher';
+    this.form.name = trainer.fullName;
+    this.form.email = trainer.email;
+    this.form.scope = 'branch';
+    this.form.branchId = trainer.branch.id;
+    this.scopeSelection = this.form.scope;
+  }
+
+  scopeHelpText(): string {
+    if (!this.canBeGlobal(this.form.role)) return 'Students are always tied to one franchise branch.';
+    if (this.form.scope === 'global') return 'Global users are not tied to one branch and can work across the franchise network.';
+    return 'Branch-specific users can work only within the selected franchise branch.';
   }
 
   isGlobalUser(user: UserRow): boolean {

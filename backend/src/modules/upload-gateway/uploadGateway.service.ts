@@ -3,6 +3,7 @@ import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
 import { hasGlobalScope, isSuperAdmin } from '../../common/utils/scope.util';
 import { Prisma } from '@prisma/client';
+import { ROLES } from '../../common/roles';
 import {
   UPLOAD_CATEGORIES,
   ALLOWED_EXTENSIONS,
@@ -222,6 +223,9 @@ export const uploadGatewayService = {
       const accessible = asset.ownerScope === 'branch' && asset.branchId === user.branchId;
       if (!accessible) throw new Error('ACCESS_DENIED');
     }
+    if (user.role === ROLES.TEACHER && asset.createdByUserId !== user.userId) {
+      throw new Error('ACCESS_DENIED');
+    }
 
     // Resolve absolute path and delete from disk
     const absolutePath = resolveAbsoluteFromUrl(asset.fileUrl);
@@ -257,6 +261,9 @@ export const uploadGatewayService = {
     if (!hasGlobalScope(user)) {
       const accessible = asset.ownerScope === 'branch' && asset.branchId === user.branchId;
       if (!accessible) throw new Error('ACCESS_DENIED');
+    }
+    if (user.role === ROLES.TEACHER && asset.createdByUserId !== user.userId) {
+      throw new Error('ACCESS_DENIED');
     }
 
     // Validate new file type

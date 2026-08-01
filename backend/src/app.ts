@@ -13,6 +13,7 @@ import discountPoliciesRouter from './modules/discount-policies/discountPolicy.r
 import discountRequestsRouter from './modules/discount-requests/discountRequest.routes';
 import batchesRouter from './modules/batches/batch.routes';
 import batchStudentsRouter from './modules/batch-students/batchStudent.routes';
+import batchMaterialsRouter from './modules/batch-materials/batchMaterial.routes';
 import attendanceRouter from './modules/attendance/attendance.routes';
 import trainersRouter from './modules/trainers/trainer.routes';
 import batchTrainersRouter from './modules/batch-trainers/batchTrainer.routes';
@@ -75,6 +76,7 @@ app.use('/api/v1/discount-policies', discountPoliciesRouter);
 app.use('/api/v1/discount-requests', discountRequestsRouter);
 app.use('/api/v1/batches', batchesRouter);
 app.use('/api/v1/batch-students', batchStudentsRouter);
+app.use('/api/v1/batch-materials', batchMaterialsRouter);
 app.use('/api/v1/attendance', attendanceRouter);
 app.use('/api/v1/trainers', trainersRouter);
 app.use('/api/v1/batch-trainers', batchTrainersRouter);
