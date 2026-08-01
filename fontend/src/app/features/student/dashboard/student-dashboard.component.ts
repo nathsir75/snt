@@ -1,7 +1,7 @@
 import { Component, inject, signal, computed, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SlicePipe } from '@angular/common';
-import { StudentService, StudentProfile } from '../student.service';
+import { StudentService, StudentProfile, StudentBatchMaterial } from '../student.service';
 import { AuthService } from '../../../core/auth/auth.service';
 
 type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
@@ -98,10 +98,90 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
             </div>
           }
 
+          @if (profile()!.activeBatch) {
+            <section class="learning-grid">
+              <div class="learning-card learning-card--featured card">
+                <div class="learning-card__head">
+                  <span>Latest Recorded Lecture</span>
+                  <a routerLink="/student/my-course">View all</a>
+                </div>
+                @if (materialsLoading()) {
+                  <p class="text-muted text-sm">Loading teacher materials...</p>
+                } @else if (latestLecture()) {
+                  <a class="feature-link" [href]="materialUrl(latestLecture()!)" target="_blank" rel="noopener noreferrer">
+                    <span class="feature-link__date">Recorded lecture — {{ materialDate(latestLecture()!) }}</span>
+                    <strong>{{ latestLecture()!.title }}</strong>
+                    @if (latestLecture()!.description) { <small>{{ latestLecture()!.description }}</small> }
+                  </a>
+                } @else {
+                  <p class="text-muted text-sm">No recorded lecture has been published yet.</p>
+                }
+              </div>
+
+              <div class="learning-card card">
+                <div class="learning-card__head">
+                  <span>Previous Lectures</span>
+                  <a routerLink="/student/my-course">View all</a>
+                </div>
+                @if (previousLectures().length === 0) {
+                  <p class="text-muted text-sm">Previous lecture history will appear here.</p>
+                } @else {
+                  <div class="compact-list">
+                    @for (item of previousLectures() | slice:0:4; track item.id) {
+                      <a [href]="materialUrl(item)" target="_blank" rel="noopener noreferrer">
+                        <span>{{ materialDate(item) }}</span>
+                        <strong>{{ item.title }}</strong>
+                      </a>
+                    }
+                  </div>
+                }
+              </div>
+
+              <div class="learning-card card">
+                <div class="learning-card__head">
+                  <span>Teacher Recommended Training Videos</span>
+                  <a routerLink="/student/my-course">View all</a>
+                </div>
+                @if (recommendedVideos().length === 0) {
+                  <p class="text-muted text-sm">Recommended videos from your teacher will appear here.</p>
+                } @else {
+                  <div class="compact-list">
+                    @for (item of recommendedVideos() | slice:0:4; track item.id) {
+                      <a [href]="materialUrl(item)" target="_blank" rel="noopener noreferrer">
+                        <span>{{ materialTypeLabel(item) }}</span>
+                        <strong>{{ item.title }}</strong>
+                      </a>
+                    }
+                  </div>
+                }
+              </div>
+
+              <div class="learning-card card">
+                <div class="learning-card__head">
+                  <span>Study Resources</span>
+                  <a routerLink="/student/my-course">View all</a>
+                </div>
+                @if (studyResources().length === 0) {
+                  <p class="text-muted text-sm">PPT, PDF and documents shared by your teacher will appear here.</p>
+                } @else {
+                  <div class="compact-list">
+                    @for (item of studyResources() | slice:0:5; track item.id) {
+                      <a [href]="materialUrl(item)" target="_blank" rel="noopener noreferrer">
+                        <span>{{ materialTypeLabel(item) }}</span>
+                        <strong>{{ item.title }}</strong>
+                      </a>
+                    }
+                  </div>
+                }
+              </div>
+            </section>
+          }
+
           <!-- Quick links -->
           <div class="section-title">Quick Access</div>
           <div class="quick-links">
             <a routerLink="/student/my-course"     class="quick-link card"><span class="quick-link__icon">📚</span><span class="quick-link__label">My Course</span></a>
+            <a routerLink="/student/quizzes"       class="quick-link card"><span class="quick-link__icon">?</span><span class="quick-link__label">Daily Quiz</span></a>
             <a routerLink="/student/my-attendance" class="quick-link card"><span class="quick-link__icon">✅</span><span class="quick-link__label">Attendance</span></a>
             <a routerLink="/student/schedule"      class="quick-link card"><span class="quick-link__icon">📅</span><span class="quick-link__label">Schedule</span></a>
             <a routerLink="/student/fees"          class="quick-link card"><span class="quick-link__icon">💰</span><span class="quick-link__label">Fees</span></a>
@@ -167,6 +247,21 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
     .dash-no-batch-title { font-weight: 600; font-size: var(--font-size-sm); }
 
     /* Quick links */
+    .learning-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .learning-card { min-height: 150px; display: flex; flex-direction: column; gap: 10px; }
+    .learning-card--featured { border-left: 3px solid var(--layout-accent, #16a34a); }
+    .learning-card__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .learning-card__head span { font-size: var(--font-size-sm); font-weight: 800; color: var(--color-text); }
+    .learning-card__head a { font-size: var(--font-size-xs); font-weight: 700; color: var(--layout-accent, #16a34a); text-decoration: none; white-space: nowrap; }
+    .feature-link { display: flex; flex-direction: column; gap: 5px; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: inherit; text-decoration: none; background: var(--color-bg); }
+    .feature-link:hover, .compact-list a:hover { border-color: var(--layout-accent, #16a34a); }
+    .feature-link__date { font-size: var(--font-size-xs); color: var(--layout-accent, #16a34a); font-weight: 800; }
+    .feature-link strong { font-size: var(--font-size-md); }
+    .feature-link small { color: var(--color-text-muted); line-height: 1.35; }
+    .compact-list { display: flex; flex-direction: column; gap: 8px; }
+    .compact-list a { display: grid; grid-template-columns: 92px 1fr; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: inherit; text-decoration: none; }
+    .compact-list span { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 700; }
+    .compact-list strong { font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .section-title { font-size: var(--font-size-sm); font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--color-text-muted); }
     .quick-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; }
     .quick-link {
@@ -178,6 +273,11 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
     .quick-link__icon { font-size: 24px; }
     .quick-link__label { font-size: var(--font-size-sm); font-weight: 500; }
 
+    @media (max-width: 760px) {
+      .learning-grid { grid-template-columns: 1fr; }
+      .compact-list a { grid-template-columns: 82px 1fr; }
+    }
+
     @keyframes spin { to { transform: rotate(360deg); } }
   `],
 })
@@ -187,6 +287,8 @@ export class StudentDashboardComponent implements OnInit {
 
   readonly state    = signal<DashState>('loading');
   readonly profile  = signal<StudentProfile | null>(null);
+  readonly materials = signal<StudentBatchMaterial[]>([]);
+  readonly materialsLoading = signal(false);
   readonly errorMsg = signal<string | null>(null);
 
   readonly initials = computed(() => {
@@ -207,6 +309,7 @@ export class StudentDashboardComponent implements OnInit {
           return;
         }
         this.profile.set(res);
+        if (res.activeBatch) this.loadMaterials(res.activeBatch.batchId);
         this.state.set('ready');
       },
       error: (e: { error?: { error?: string }; status?: number }) => {
@@ -219,4 +322,45 @@ export class StudentDashboardComponent implements OnInit {
   reload(): void { this.load(); }
 
   logout(): void { this.auth.logout(); }
+
+  readonly recordedLectures = computed(() => this.materials()
+    .filter((item) => item.contentCategory === 'recorded_lecture')
+    .sort((a, b) => this.sortMaterialDateDesc(a, b)));
+
+  readonly latestLecture = computed(() => this.recordedLectures()[0] ?? null);
+  readonly previousLectures = computed(() => this.recordedLectures().slice(1));
+  readonly recommendedVideos = computed(() => this.materials()
+    .filter((item) => item.contentCategory === 'recommended_video')
+    .sort((a, b) => this.sortMaterialDateDesc(a, b)));
+  readonly studyResources = computed(() => this.materials()
+    .filter((item) => item.contentCategory === 'study_resource')
+    .sort((a, b) => this.sortMaterialDateDesc(a, b)));
+
+  materialUrl(item: StudentBatchMaterial): string {
+    return item.externalUrl || item.fileUrl || item.mediaAsset?.fileUrl || '#';
+  }
+
+  materialDate(item: StudentBatchMaterial): string {
+    const value = item.lectureDate || item.createdAt;
+    return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  materialTypeLabel(item: StudentBatchMaterial): string {
+    if (item.materialType === 'link') return 'Video link';
+    return item.materialType.toUpperCase();
+  }
+
+  private loadMaterials(batchId: number): void {
+    this.materialsLoading.set(true);
+    this.studentSvc.getBatchMaterials(batchId).subscribe({
+      next: (items) => { this.materials.set(items); this.materialsLoading.set(false); },
+      error: () => { this.materials.set([]); this.materialsLoading.set(false); },
+    });
+  }
+
+  private sortMaterialDateDesc(a: StudentBatchMaterial, b: StudentBatchMaterial): number {
+    const left = new Date(a.lectureDate || a.createdAt).getTime();
+    const right = new Date(b.lectureDate || b.createdAt).getTime();
+    return right - left;
+  }
 }

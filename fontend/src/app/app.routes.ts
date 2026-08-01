@@ -152,6 +152,7 @@ export const APP_ROUTES: Routes = [
       { path: 'attendance',  loadComponent: () => import('./features/teacher/attendance/teacher-attendance.component').then((m) => m.TeacherAttendanceComponent) },
       { path: 'schedule',    loadComponent: () => import('./features/teacher/schedule/teacher-schedule.component').then((m) => m.TeacherScheduleComponent) },
       { path: 'content',     loadComponent: () => import('./features/teacher/content/teacher-content.component').then((m) => m.TeacherContentComponent) },
+      { path: 'quizzes',     loadComponent: () => import('./features/teacher/quizzes/teacher-quizzes.component').then((m) => m.TeacherQuizzesComponent) },
       { path: 'alerts',      loadComponent: () => import('./features/alerts/alerts.component').then((m) => m.AlertsComponent) },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
     ],
@@ -165,6 +166,7 @@ export const APP_ROUTES: Routes = [
     children: [
       { path: 'dashboard',    loadComponent: () => import('./features/student/dashboard/student-dashboard.component').then((m) => m.StudentDashboardComponent) },
       { path: 'my-course',    loadComponent: () => import('./features/student/my-course/student-my-course.component').then((m) => m.StudentMyCourseComponent) },
+      { path: 'quizzes',      loadComponent: () => import('./features/student/quizzes/student-quizzes.component').then((m) => m.StudentQuizzesComponent) },
       { path: 'my-attendance',loadComponent: () => import('./features/student/my-attendance/student-attendance.component').then((m) => m.StudentAttendanceComponent) },
       { path: 'profile',      loadComponent: () => import('./features/student/profile/student-profile.component').then((m) => m.StudentProfileComponent) },
       { path: 'fees',         loadComponent: () => import('./features/student/fees/student-fees.component').then((m) => m.StudentFeesComponent) },

@@ -12,6 +12,8 @@ const MATERIAL_SELECT = {
   title: true,
   description: true,
   materialType: true,
+  contentCategory: true,
+  lectureDate: true,
   fileUrl: true,
   externalUrl: true,
   isPublished: true,
@@ -24,9 +26,27 @@ const MATERIAL_SELECT = {
 };
 
 const VALID_TYPES = new Set(['pdf', 'ppt', 'document', 'video', 'image', 'link']);
+const VALID_CATEGORIES = new Set(['recorded_lecture', 'recommended_video', 'study_resource']);
 
 function cleanText(value: unknown): string {
   return String(value ?? '').trim();
+}
+
+function normalizeContentCategory(value: unknown): string {
+  const category = cleanText(value || 'study_resource');
+  if (!VALID_CATEGORIES.has(category)) throw new Error('INVALID_CONTENT_CATEGORY');
+  return category;
+}
+
+function normalizeLectureDate(value: unknown, contentCategory: string): Date | null {
+  const raw = cleanText(value);
+  if (!raw) {
+    if (contentCategory === 'recorded_lecture') throw new Error('LECTURE_DATE_REQUIRED');
+    return null;
+  }
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) throw new Error('INVALID_LECTURE_DATE');
+  return date;
 }
 
 function assertBranchAccess(user: AuthPayload, branchId: number): void {
@@ -60,6 +80,8 @@ async function assertMaterialAccess(user: AuthPayload, id: number) {
       branchId: true,
       createdByUserId: true,
       materialType: true,
+      contentCategory: true,
+      lectureDate: true,
       mediaAssetId: true,
       fileUrl: true,
       externalUrl: true,
@@ -142,12 +164,16 @@ export const batchMaterialService = {
       mediaAssetId?: number | null;
       externalUrl?: string | null;
       isPublished?: boolean;
+      contentCategory?: string;
+      lectureDate?: string | null;
     },
   ) => {
     const title = cleanText(data.title);
     const description = cleanText(data.description);
     const materialType = cleanText(data.materialType);
     const externalUrl = cleanText(data.externalUrl);
+    const contentCategory = normalizeContentCategory(data.contentCategory);
+    const lectureDate = normalizeLectureDate(data.lectureDate, contentCategory);
 
     if (!title || !materialType || !VALID_TYPES.has(materialType)) throw new Error('INVALID_INPUT');
     if (materialType === 'link' && !externalUrl) throw new Error('MATERIAL_TARGET_REQUIRED');
@@ -166,6 +192,8 @@ export const batchMaterialService = {
         title,
         description: description || null,
         materialType,
+        contentCategory,
+        lectureDate,
         mediaAssetId: materialType === 'link' ? null : mediaAsset?.id ?? null,
         fileUrl: materialType === 'link' ? null : mediaAsset?.fileUrl ?? null,
         externalUrl: materialType === 'link' ? externalUrl : null,
@@ -186,6 +214,8 @@ export const batchMaterialService = {
       mediaAssetId?: number | null;
       externalUrl?: string | null;
       isPublished?: boolean;
+      contentCategory?: string;
+      lectureDate?: string | null;
     },
   ) => {
     const material = await assertMaterialAccess(user, id);
@@ -195,6 +225,12 @@ export const batchMaterialService = {
     const materialType = data.materialType !== undefined ? cleanText(data.materialType) : undefined;
     if (materialType !== undefined && (!materialType || !VALID_TYPES.has(materialType))) throw new Error('INVALID_INPUT');
     const finalType = materialType ?? material.materialType;
+    const contentCategory = data.contentCategory !== undefined ? normalizeContentCategory(data.contentCategory) : undefined;
+    const finalCategory = contentCategory ?? material.contentCategory;
+    const lectureDate = data.lectureDate !== undefined
+      ? normalizeLectureDate(data.lectureDate, finalCategory)
+      : material.lectureDate;
+    if (finalCategory === 'recorded_lecture' && !lectureDate) throw new Error('LECTURE_DATE_REQUIRED');
 
     const title = data.title !== undefined ? cleanText(data.title) : undefined;
     if (data.title !== undefined && !title) throw new Error('INVALID_INPUT');
@@ -217,6 +253,8 @@ export const batchMaterialService = {
         ...(title !== undefined && { title }),
         ...(data.description !== undefined && { description: cleanText(data.description) || null }),
         ...(materialType !== undefined && { materialType }),
+        ...(contentCategory !== undefined && { contentCategory }),
+        ...(data.lectureDate !== undefined && { lectureDate }),
         ...(mediaAsset !== undefined && { mediaAssetId: mediaAsset?.id ?? null, fileUrl: mediaAsset?.fileUrl ?? null }),
         ...(externalUrl !== undefined && { externalUrl: externalUrl || null }),
         ...(finalType === 'link' && { mediaAssetId: null, fileUrl: null }),

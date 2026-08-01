@@ -54,6 +54,8 @@ model Branch {
   teacherAssignments      TeacherBatchAssignment[]
   contentItems            BranchContentItem[]
   batchMaterials          BatchMaterial[]
+  dailyQuizzes            DailyQuiz[]
+  dailyQuizAttempts       DailyQuizAttempt[]
 }
 
 model Enquiry {
@@ -95,6 +97,7 @@ model Student {
   branch                  Branch                   @relation(fields: [branchId], references: [id])
   enquiry                 Enquiry?                 @relation(fields: [enquiryId], references: [id])
   user                    User?                    @relation(fields: [userId], references: [id])
+  dailyQuizAttempts       DailyQuizAttempt[]
   feePayments             FeePayment[]
   discountRequests        DiscountRequest[]
   batchStudents           BatchStudent[]
@@ -209,6 +212,7 @@ model Batch {
   batchSchedules         BatchSchedule[]
   teacherAssignments     TeacherBatchAssignment[]
   materials              BatchMaterial[]
+  dailyQuizzes           DailyQuiz[]
 }
 
 model BatchStudent {
@@ -341,6 +345,7 @@ model User {
   certificatesIssued             CertificateIssue[]
   mediaAssetsCreated             MediaAsset[]
   batchMaterialsCreated          BatchMaterial[]
+  dailyQuizzesCreated            DailyQuiz[]
   teacherBatchAssignments        TeacherBatchAssignment[]
   studentProfile                 Student?
 
@@ -621,6 +626,7 @@ model MediaAsset {
   branch          Branch?  @relation(fields: [branchId], references: [id])
   createdBy       User?    @relation(fields: [createdByUserId], references: [id])
   batchMaterials  BatchMaterial[]
+  dailyQuizQuestions DailyQuizQuestion[]
 }
 
 model BatchMaterial {
@@ -630,6 +636,8 @@ model BatchMaterial {
   title           String
   description     String?
   materialType    String
+  contentCategory String      @default("study_resource")
+  lectureDate     DateTime?
   fileUrl         String?
   externalUrl     String?
   mediaAssetId    Int?
@@ -644,9 +652,102 @@ model BatchMaterial {
   createdBy       User        @relation(fields: [createdByUserId], references: [id])
 
   @@index([batchId, isPublished])
+  @@index([contentCategory, lectureDate])
   @@index([archivedAt])
   @@index([branchId])
   @@index([createdByUserId])
+}
+
+model DailyQuiz {
+  id              Int                @id @default(autoincrement())
+  batchId         Int
+  branchId        Int
+  title           String
+  topic           String?
+  lectureDate     DateTime?
+  scheduledAt     DateTime
+  closesAt        DateTime
+  durationMinutes Int                @default(10)
+  isPublished     Boolean            @default(true)
+  archivedAt      DateTime?
+  createdByUserId Int
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  batch           Batch              @relation(fields: [batchId], references: [id])
+  branch          Branch             @relation(fields: [branchId], references: [id])
+  createdBy       User               @relation(fields: [createdByUserId], references: [id])
+  questions       DailyQuizQuestion[]
+  attempts        DailyQuizAttempt[]
+
+  @@index([batchId, scheduledAt])
+  @@index([branchId])
+  @@index([createdByUserId])
+}
+
+model DailyQuizQuestion {
+  id            Int               @id @default(autoincrement())
+  quizId        Int
+  prompt        String
+  questionType  String            @default("mcq")
+  imageUrl      String?
+  mediaAssetId  Int?
+  explanation   String?
+  points        Int               @default(1)
+  order         Int               @default(0)
+  quiz          DailyQuiz         @relation(fields: [quizId], references: [id])
+  mediaAsset    MediaAsset?       @relation(fields: [mediaAssetId], references: [id])
+  options       DailyQuizOption[]
+  answers       DailyQuizAnswer[]
+
+  @@index([questionType])
+}
+
+model DailyQuizOption {
+  id         Int               @id @default(autoincrement())
+  questionId Int
+  text       String
+  matchText  String?
+  isCorrect  Boolean           @default(false)
+  order      Int               @default(0)
+  question   DailyQuizQuestion @relation(fields: [questionId], references: [id])
+  answers    DailyQuizAnswer[]
+}
+
+model DailyQuizAttempt {
+  id            Int               @id @default(autoincrement())
+  quizId        Int
+  studentId     Int
+  branchId      Int
+  startedAt     DateTime          @default(now())
+  expiresAt     DateTime
+  submittedAt   DateTime?
+  status        String            @default("in_progress")
+  score         Int               @default(0)
+  totalPoints   Int               @default(0)
+  questionOrder Json
+  optionOrder   Json
+  quiz          DailyQuiz         @relation(fields: [quizId], references: [id])
+  student       Student           @relation(fields: [studentId], references: [id])
+  branch        Branch            @relation(fields: [branchId], references: [id])
+  answers       DailyQuizAnswer[]
+
+  @@unique([quizId, studentId])
+  @@index([studentId, startedAt])
+}
+
+model DailyQuizAnswer {
+  id               Int               @id @default(autoincrement())
+  attemptId        Int
+  questionId       Int
+  selectedOptionId Int?
+  answerJson       Json?
+  isCorrect        Boolean           @default(false)
+  pointsAwarded    Int               @default(0)
+  attempt          DailyQuizAttempt  @relation(fields: [attemptId], references: [id])
+  question         DailyQuizQuestion @relation(fields: [questionId], references: [id])
+  selectedOption   DailyQuizOption?  @relation(fields: [selectedOptionId], references: [id])
+
+  @@unique([attemptId, questionId])
 }
 
 model BranchContentItem {

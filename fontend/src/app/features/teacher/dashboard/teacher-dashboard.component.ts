@@ -99,6 +99,10 @@ import { AuthService } from '../../../core/auth/auth.service';
             <span class="quick-link__icon">🖥️</span>
             <span class="quick-link__label">Content</span>
           </a>
+          <a routerLink="/teacher/quizzes"     class="quick-link card">
+            <span class="quick-link__icon">?</span>
+            <span class="quick-link__label">Daily Quiz</span>
+          </a>
         </div>
       }
     </div>

@@ -65,6 +65,8 @@ export interface BatchMaterial {
   title: string;
   description: string | null;
   materialType: string;
+  contentCategory: 'recorded_lecture' | 'recommended_video' | 'study_resource';
+  lectureDate: string | null;
   fileUrl: string | null;
   externalUrl: string | null;
   isPublished: boolean;
@@ -73,6 +75,20 @@ export interface BatchMaterial {
   mediaAsset: { id: number; title: string; mediaType: string; fileUrl: string; mimeType: string | null; fileSizeKb: number | null } | null;
   createdBy: { id: number; name: string };
   batch: { id: number; name: string; branch: { id: number; name: string }; course: { id: number; name: string; code: string } };
+}
+
+export interface DailyQuizSummary {
+  id: number;
+  batchId: number;
+  title: string;
+  topic: string | null;
+  lectureDate: string | null;
+  scheduledAt: string;
+  closesAt: string;
+  durationMinutes: number;
+  isPublished: boolean;
+  _count: { questions: number; attempts: number };
+  batch: { id: number; name: string; branch: { id: number; name: string }; course: { id: number; name: string } };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -128,6 +144,8 @@ export class TeacherService {
     title: string;
     description?: string;
     materialType: string;
+    contentCategory?: string;
+    lectureDate?: string | null;
     mediaAssetId?: number | null;
     externalUrl?: string | null;
     isPublished?: boolean;
@@ -139,6 +157,8 @@ export class TeacherService {
     title?: string;
     description?: string | null;
     materialType?: string;
+    contentCategory?: string;
+    lectureDate?: string | null;
     mediaAssetId?: number | null;
     externalUrl?: string | null;
     isPublished?: boolean;
@@ -152,5 +172,17 @@ export class TeacherService {
 
   archiveMaterial(id: number): Observable<BatchMaterial> {
     return this.api.delete<BatchMaterial>(`/batch-materials/${id}`);
+  }
+
+  getDailyQuizzes(): Observable<DailyQuizSummary[]> {
+    return this.api.get<DailyQuizSummary[]>('/daily-quizzes/teacher');
+  }
+
+  createDailyQuiz(data: any): Observable<DailyQuizSummary> {
+    return this.api.post<DailyQuizSummary>('/daily-quizzes', data);
+  }
+
+  archiveDailyQuiz(id: number): Observable<DailyQuizSummary> {
+    return this.api.delete<DailyQuizSummary>(`/daily-quizzes/${id}`);
   }
 }

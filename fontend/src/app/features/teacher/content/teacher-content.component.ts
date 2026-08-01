@@ -5,6 +5,7 @@ import { MediaService } from '../../media-library/media.service';
 import { UploadCategory } from '../../media-library/media.models';
 
 type MaterialMode = 'upload' | 'link';
+type ContentCategory = 'recorded_lecture' | 'recommended_video' | 'study_resource';
 
 @Component({
   selector: 'snt-teacher-content',
@@ -38,6 +39,22 @@ type MaterialMode = 'upload' | 'link';
         <label class="field">
           <span>Title *</span>
           <input class="input" [(ngModel)]="materialForm.title" placeholder="Example: Week 2 practice worksheet" />
+        </label>
+
+        <label class="field">
+          <span>Content category *</span>
+          <select class="input" [(ngModel)]="materialForm.contentCategory">
+            <option value="recorded_lecture">Recorded lecture</option>
+            <option value="recommended_video">Recommended training video</option>
+            <option value="study_resource">Study resource</option>
+          </select>
+          <small>{{ categoryHelpText() }}</small>
+        </label>
+
+        <label class="field">
+          <span>{{ materialForm.contentCategory === 'recorded_lecture' ? 'Lecture date *' : 'Lecture date' }}</span>
+          <input class="input" type="date" [(ngModel)]="materialForm.lectureDate" />
+          <small>Use the class/recording date, not the publish date.</small>
         </label>
 
         @if (materialMode() === 'upload') {
@@ -110,6 +127,7 @@ type MaterialMode = 'upload' | 'link';
               <span class="material-item__type">{{ item.materialType }}</span>
               <span class="material-item__body">
                 <a [href]="materialUrl(item)" target="_blank" rel="noopener">{{ item.title }}</a>
+                <small>{{ categoryLabel(item.contentCategory) }}@if (item.lectureDate) { — {{ formatDate(item.lectureDate) }} }</small>
                 @if (item.description) { <small>{{ item.description }}</small> }
               </span>
               <span class="material-item__status" [class.material-item__status--off]="!item.isPublished">{{ item.isPublished ? 'Published' : 'Unpublished' }}</span>
@@ -310,7 +328,9 @@ export class TeacherContentComponent implements OnInit {
     description: string;
     materialType: UploadCategory | 'link';
     externalUrl: string;
-  } = { batchId: null, title: '', description: '', materialType: 'pdf', externalUrl: '' };
+    contentCategory: ContentCategory;
+    lectureDate: string;
+  } = { batchId: null, title: '', description: '', materialType: 'pdf', externalUrl: '', contentCategory: 'study_resource', lectureDate: '' };
 
   ngOnInit(): void {
     this.teacherSvc.getMyBatches().subscribe({
@@ -382,6 +402,10 @@ export class TeacherContentComponent implements OnInit {
       this.materialError.set('Select a batch and enter a title.');
       return;
     }
+    if (this.materialForm.contentCategory === 'recorded_lecture' && !this.materialForm.lectureDate) {
+      this.materialError.set('Lecture date is required for recorded lectures.');
+      return;
+    }
     const editing = this.editingMaterial();
     const replacingLinkWithFile = !!editing && editing.materialType === 'link' && this.materialMode() === 'upload';
     if (this.materialMode() === 'upload' && !this.selectedFile && (!editing || replacingLinkWithFile)) {
@@ -407,6 +431,8 @@ export class TeacherContentComponent implements OnInit {
         title: this.materialForm.title.trim(),
         description: this.materialForm.description.trim() || undefined,
         materialType: this.materialMode() === 'link' ? 'link' : this.materialForm.materialType,
+        contentCategory: this.materialForm.contentCategory,
+        lectureDate: this.materialForm.lectureDate || null,
         mediaAssetId: mediaAssetId,
         externalUrl: this.materialMode() === 'link' ? this.materialForm.externalUrl.trim() : null,
         isPublished: true,
@@ -469,6 +495,8 @@ export class TeacherContentComponent implements OnInit {
       description: item.description ?? '',
       materialType: item.materialType === 'link' ? 'video' : item.materialType as UploadCategory,
       externalUrl: item.externalUrl ?? '',
+      contentCategory: item.contentCategory,
+      lectureDate: this.toDateInputValue(item.lectureDate),
     };
   }
 
@@ -515,7 +543,32 @@ export class TeacherContentComponent implements OnInit {
     this.editingMaterialId.set(null);
     this.selectedFile = null;
     this.materialMode.set('upload');
-    this.materialForm = { batchId, title: '', description: '', materialType: 'pdf', externalUrl: '' };
+    this.materialForm = { batchId, title: '', description: '', materialType: 'pdf', externalUrl: '', contentCategory: 'study_resource', lectureDate: '' };
+  }
+
+  categoryLabel(category: string): string {
+    const labels: Record<string, string> = {
+      recorded_lecture: 'Recorded lecture',
+      recommended_video: 'Recommended training video',
+      study_resource: 'Study resource',
+    };
+    return labels[category] ?? 'Study resource';
+  }
+
+  categoryHelpText(): string {
+    if (this.materialForm.contentCategory === 'recorded_lecture') return 'Use this for online class recordings and add the lecture date.';
+    if (this.materialForm.contentCategory === 'recommended_video') return 'Use this for teacher-recommended training videos.';
+    return 'Use this for PPT, PDF, notes, documents and worksheets.';
+  }
+
+  formatDate(value: string | null): string {
+    if (!value) return '';
+    return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  private toDateInputValue(value: string | null): string {
+    if (!value) return '';
+    return value.slice(0, 10);
   }
 
   private isYouTubeUrl(value: string): boolean {

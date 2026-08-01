@@ -6,7 +6,10 @@ const ERROR_MAP: Record<string, [number, string]> = {
   ACCESS_DENIED:             [403, 'Access denied'],
   BATCH_NOT_FOUND:           [404, 'Batch not found'],
   INVALID_INPUT:             [400, 'Please provide a valid title, type and material details'],
+  INVALID_CONTENT_CATEGORY:  [400, 'Please choose a valid content category'],
+  INVALID_LECTURE_DATE:      [400, 'Please provide a valid lecture date'],
   INVALID_YOUTUBE_URL:       [400, 'Please provide a valid YouTube URL'],
+  LECTURE_DATE_REQUIRED:     [400, 'Lecture date is required for recorded lectures'],
   MATERIAL_NOT_FOUND:        [404, 'Material not found'],
   MATERIAL_TARGET_REQUIRED:  [400, 'Upload a file or provide a material link'],
   MEDIA_ASSET_NOT_FOUND:     [404, 'Uploaded media asset not found'],
@@ -38,9 +41,10 @@ export const batchMaterialController = {
 
   create: async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { batchId, title, description, materialType, mediaAssetId, externalUrl, isPublished } = req.body as {
+      const { batchId, title, description, materialType, mediaAssetId, externalUrl, isPublished, contentCategory, lectureDate } = req.body as {
         batchId: number; title: string; description?: string; materialType: string;
         mediaAssetId?: number | null; externalUrl?: string | null; isPublished?: boolean;
+        contentCategory?: string; lectureDate?: string | null;
       };
       if (!batchId || !title || !materialType) {
         res.status(400).json({ error: 'batchId, title and materialType are required' });
@@ -54,6 +58,8 @@ export const batchMaterialController = {
         mediaAssetId: mediaAssetId ? Number(mediaAssetId) : null,
         externalUrl,
         isPublished,
+        contentCategory,
+        lectureDate,
       });
       res.status(201).json(material);
     } catch (err) { handleError(res, err); }
@@ -63,9 +69,10 @@ export const batchMaterialController = {
     try {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) { res.status(400).json({ error: 'Invalid material id' }); return; }
-      const { title, description, materialType, mediaAssetId, externalUrl, isPublished } = req.body as {
+      const { title, description, materialType, mediaAssetId, externalUrl, isPublished, contentCategory, lectureDate } = req.body as {
         title?: string; description?: string | null; materialType?: string;
         mediaAssetId?: number | null; externalUrl?: string | null; isPublished?: boolean;
+        contentCategory?: string; lectureDate?: string | null;
       };
       res.json(await batchMaterialService.update(req.user!, id, {
         title,
@@ -74,6 +81,8 @@ export const batchMaterialController = {
         mediaAssetId: mediaAssetId === undefined ? undefined : mediaAssetId ? Number(mediaAssetId) : null,
         externalUrl,
         isPublished,
+        contentCategory,
+        lectureDate,
       }));
     } catch (err) { handleError(res, err); }
   },

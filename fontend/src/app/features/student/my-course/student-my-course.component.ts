@@ -129,6 +129,7 @@ const TYPE_ICON: Record<string, string> = {
                   <span class="content-item__icon">{{ typeIcon(item.materialType) }}</span>
                   <span class="material-link__body">
                     <strong>{{ item.title }}</strong>
+                    <small>{{ categoryLabel(item.contentCategory) }}@if (item.lectureDate) { — {{ materialDate(item) }} }</small>
                     @if (item.description) { <small>{{ item.description }}</small> }
                   </span>
                   <span class="content-item__arrow">↗</span>
@@ -299,6 +300,20 @@ export class StudentMyCourseComponent implements OnInit {
 
   materialUrl(item: StudentBatchMaterial): string {
     return item.fileUrl || item.externalUrl || item.mediaAsset?.fileUrl || '#';
+  }
+
+  categoryLabel(category: string): string {
+    const labels: Record<string, string> = {
+      recorded_lecture: 'Recorded lecture',
+      recommended_video: 'Teacher recommended video',
+      study_resource: 'Study resource',
+    };
+    return labels[category] ?? 'Study resource';
+  }
+
+  materialDate(item: StudentBatchMaterial): string {
+    const value = item.lectureDate || item.createdAt;
+    return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   private loadMaterials(batchId: number): void {

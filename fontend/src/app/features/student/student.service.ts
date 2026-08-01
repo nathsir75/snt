@@ -44,11 +44,26 @@ export interface StudentBatchMaterial {
   title: string;
   description: string | null;
   materialType: string;
+  contentCategory: 'recorded_lecture' | 'recommended_video' | 'study_resource';
+  lectureDate: string | null;
   fileUrl: string | null;
   externalUrl: string | null;
   createdAt: string;
   mediaAsset: { id: number; title: string; mediaType: string; fileUrl: string; mimeType: string | null; fileSizeKb: number | null } | null;
   createdBy: { id: number; name: string };
+}
+
+export interface StudentDailyQuiz {
+  id: number;
+  title: string;
+  topic: string | null;
+  lectureDate: string | null;
+  scheduledAt: string;
+  closesAt: string;
+  durationMinutes: number;
+  serverNow: string;
+  _count: { questions: number; attempts: number };
+  attempt: { id: number; status: string; score: number; totalPoints: number; expiresAt: string; submittedAt: string | null } | null;
 }
 
 export interface StudentSession {
@@ -214,6 +229,18 @@ export class StudentService {
   }
   getBatchMaterials(batchId: number): Observable<StudentBatchMaterial[]> {
     return this.api.get<StudentBatchMaterial[]>(`/batch-materials/batch/${batchId}`);
+  }
+  getDailyQuizzes(): Observable<StudentDailyQuiz[]> {
+    return this.api.get<StudentDailyQuiz[]>('/daily-quizzes/student');
+  }
+  startDailyQuiz(id: number): Observable<any> {
+    return this.api.post<any>(`/daily-quizzes/${id}/start`, {});
+  }
+  getDailyQuizAttempt(id: number): Observable<any> {
+    return this.api.get<any>(`/daily-quizzes/attempts/${id}`);
+  }
+  submitDailyQuizAttempt(id: number, answers: Record<string, unknown>): Observable<any> {
+    return this.api.post<any>(`/daily-quizzes/attempts/${id}/submit`, { answers });
   }
 
   // Attendance
