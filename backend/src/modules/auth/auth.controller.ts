@@ -19,6 +19,8 @@ export const authController = {
         res.status(404).json({ error: 'User not found' });
       } else if (error.message === 'INVALID_PASSWORD') {
         res.status(401).json({ error: 'Invalid credentials' });
+      } else if (error.message === 'USER_INACTIVE') {
+        res.status(403).json({ error: 'User account is not active' });
       } else {
         console.error('[Auth] Login error:', error);
         res.status(500).json({ error: 'Login failed' });

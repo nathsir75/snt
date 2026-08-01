@@ -385,9 +385,6 @@ const WELCOME_CHIPS: WelcomeChip[] = [
       background: #f8f9ff;
       scroll-behavior: smooth;
     }
-    .cb-body::-webkit-scrollbar { width: 4px; }
-    .cb-body::-webkit-scrollbar-track { background: transparent; }
-    .cb-body::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
 
     /* Welcome state */
     .cb-welcome {

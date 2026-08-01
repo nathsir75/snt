@@ -39,6 +39,11 @@ export const authService = {
       throw new Error('USER_NOT_FOUND');
     }
 
+    if (!user.isActive || user.status !== 'active') {
+      console.log(`[Auth] Login failed — inactive user: ${email}, status=${user.status}`);
+      throw new Error('USER_INACTIVE');
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       console.log(`[Auth] Login failed — invalid password for: ${email}`);
@@ -57,7 +62,7 @@ export const authService = {
       email:    user.email,
       role:     roleName,
       branchId: user.branchId,
-      isActive: true,
+      isActive: user.isActive,
       branch:   user.branch
         ? { id: user.branch.id, name: user.branch.name, code: user.branch.code, city: user.branch.city, isActive: user.branch.status === 'active' }
         : null,
@@ -83,7 +88,7 @@ export const authService = {
       email:    user.email,
       role:     user.role.name as Role,
       branchId: user.branchId,
-      isActive: true,
+      isActive: user.isActive,
       branch:   user.branch
         ? { id: user.branch.id, name: user.branch.name, code: user.branch.code, city: user.branch.city, isActive: user.branch.status === 'active' }
         : null,

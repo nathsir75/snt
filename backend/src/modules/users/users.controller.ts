@@ -1,12 +1,22 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { AuthRequest } from '../../common/types';
 import { usersService } from './users.service';
+
+function parseOptionalInt(value: unknown): number | undefined {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
 
 export const usersController = {
   getAllUsers: async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       console.log(`[Users] GET /api/v1/users — role: ${req.user!.role}`);
-      const users = await usersService.getAllUsers(req.user!);
+      const users = await usersService.getAllUsers(req.user!, {
+        search: typeof req.query.search === 'string' ? req.query.search.trim() : undefined,
+        role: typeof req.query.role === 'string' ? req.query.role : undefined,
+        status: typeof req.query.status === 'string' ? req.query.status : undefined,
+        branchId: parseOptionalInt(req.query.branchId),
+      });
       res.json(users);
     } catch (error) {
       console.error('[Users] Error fetching users:', error);
@@ -29,28 +39,88 @@ export const usersController = {
     }
   },
 
-  createUser: async (req: Request, res: Response): Promise<void> => {
+  createUser: async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { name, email, password, role, branchId } = req.body;
       console.log('[Users] CREATE REQUEST PAYLOAD:', { name, email, role, branchId });
 
-      if (!name || !email || !password || !role) {
-        res.status(400).json({ message: 'name, email, password and role are required' });
+      if (!name || !email || !role) {
+        res.status(400).json({ message: 'name, email and role are required' });
         return;
       }
 
-      const user = await usersService.createUser({ name, email, password, role, branchId });
-      res.status(201).json(user);
+      const result = await usersService.createUser({ name, email, password, role, branchId });
+      res.status(201).json(result);
     } catch (error: any) {
-      const errorMap: Record<string, [number, string]> = {
-        INVALID_ROLE:    [400, 'Invalid role specified'],
-        BRANCH_REQUIRED: [400, 'branchId is required for this role'],
-        BRANCH_NOT_FOUND:[404, 'Branch not found'],
-        EMAIL_TAKEN:     [409, 'A user with this email already exists'],
-      };
-      const [status, message] = errorMap[error.message] ?? [500, 'Failed to create user'];
+      const [status, message] = mapUserError(error.message, 'Failed to create user');
       console.error(`[Users] createUser error: ${error.message}`);
       res.status(status).json({ message });
     }
   },
+
+  updateUser: async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) {
+        res.status(400).json({ message: 'Invalid user id' });
+        return;
+      }
+
+      const user = await usersService.updateUser(id, req.body);
+      res.json(user);
+    } catch (error: any) {
+      const [status, message] = mapUserError(error.message, 'Failed to update user');
+      console.error(`[Users] updateUser error: ${error.message}`);
+      res.status(status).json({ message });
+    }
+  },
+
+  resetPassword: async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) {
+        res.status(400).json({ message: 'Invalid user id' });
+        return;
+      }
+
+      const result = await usersService.resetPassword(id, req.body?.password);
+      res.json(result);
+    } catch (error: any) {
+      const [status, message] = mapUserError(error.message, 'Failed to reset password');
+      console.error(`[Users] resetPassword error: ${error.message}`);
+      res.status(status).json({ message });
+    }
+  },
+
+  deleteUser: async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) {
+        res.status(400).json({ message: 'Invalid user id' });
+        return;
+      }
+
+      const result = await usersService.deleteOrArchiveUser(id, req.user!);
+      res.json(result);
+    } catch (error: any) {
+      const [status, message] = mapUserError(error.message, 'Failed to delete user');
+      console.error(`[Users] deleteUser error: ${error.message}`);
+      res.status(status).json({ message });
+    }
+  },
 };
+
+function mapUserError(code: string, fallback: string): [number, string] {
+  const errorMap: Record<string, [number, string]> = {
+    INVALID_INPUT:       [400, 'Please provide valid user details'],
+    INVALID_ROLE:        [400, 'Invalid role specified'],
+    INVALID_STATUS:      [400, 'Invalid user status'],
+    WEAK_PASSWORD:       [400, 'Password must be at least 8 characters'],
+    BRANCH_REQUIRED:     [400, 'branchId is required for this role'],
+    BRANCH_NOT_FOUND:    [404, 'Branch not found'],
+    USER_NOT_FOUND:      [404, 'User not found'],
+    EMAIL_TAKEN:         [409, 'A user with this email already exists'],
+    CANNOT_DELETE_SELF:  [400, 'You cannot delete or archive your own account'],
+  };
+  return errorMap[code] ?? [500, fallback];
+}

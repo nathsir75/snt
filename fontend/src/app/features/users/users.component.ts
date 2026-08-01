@@ -9,6 +9,8 @@ import { ApiService } from '../../core/services/api.service';
 import { PageShellComponent } from '../../shared/components/page-shell/page-shell.component';
 import { PageStateComponent } from '../../shared/components/page-state/page-state.component';
 import { BadgeComponent, BadgeVariant } from '../../shared/components/badge/badge.component';
+import { DrawerComponent } from '../../shared/components/drawer/drawer.component';
+import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
 interface UserRow {
   id: number;
@@ -16,79 +18,128 @@ interface UserRow {
   email: string;
   role: { name: string } | string;
   isActive: boolean;
+  status: 'active' | 'suspended' | 'archived';
   createdAt: string;
-  branch: { id: number; name: string } | null;
+  updatedAt: string;
+  branch: { id: number; name: string; city?: string } | null;
+}
+
+interface BranchOption {
+  id: number;
+  name: string;
+  city: string;
+}
+
+interface UserForm {
+  id?: number;
+  name: string;
+  email: string;
+  role: string;
+  branchId: number | null;
+  status: 'active' | 'suspended' | 'archived';
+  password?: string;
 }
 
 type LoadState = 'loading' | 'error' | 'ready';
+type SecretNotice = { title: string; password: string; email: string } | null;
+
+const ROLES = [
+  { value: 'super_admin', label: 'Super Admin' },
+  { value: 'branch_admin', label: 'Branch Admin' },
+  { value: 'counselor', label: 'Counselor' },
+  { value: 'teacher', label: 'Teacher' },
+  { value: 'student', label: 'Student' },
+];
 
 @Component({
   selector: 'snt-users',
   standalone: true,
-  imports: [FormsModule, DatePipe, PageShellComponent, PageStateComponent, BadgeComponent],
+  imports: [FormsModule, DatePipe, PageShellComponent, PageStateComponent, BadgeComponent, DrawerComponent, ConfirmDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <snt-page-shell
       title="Users"
-      subtitle="View all staff accounts across branches"
+      subtitle="Create and control staff, teacher and student login accounts"
       icon="👥"
     >
+      <ng-container slot="actions">
+        <button class="btn btn-primary" (click)="openCreate()">+ Create User</button>
+      </ng-container>
+
       <ng-container slot="filters">
         <div class="filter-bar">
-          <div class="search-box">
-            <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input class="search-input" type="search" placeholder="Search name, email…" [(ngModel)]="searchTerm" (ngModelChange)="page.set(1)" />
-          </div>
+          <input class="filter-input" type="search" placeholder="Search name or email..." [(ngModel)]="searchTerm" (ngModelChange)="page.set(1)" />
           <select class="filter-select" [(ngModel)]="roleFilter" (ngModelChange)="page.set(1)">
             <option value="">All Roles</option>
-            <option value="branch_admin">Branch Admin</option>
-            <option value="counselor">Counselor</option>
-            <option value="teacher">Teacher</option>
-            <option value="student">Student</option>
+            @for (role of roles; track role.value) {
+              <option [value]="role.value">{{ role.label }}</option>
+            }
           </select>
-          @if (searchTerm || roleFilter) {
+          <select class="filter-select" [(ngModel)]="branchFilter" (ngModelChange)="page.set(1)">
+            <option [ngValue]="null">All Branches</option>
+            @for (branch of branches(); track branch.id) {
+              <option [ngValue]="branch.id">{{ branch.name }}</option>
+            }
+          </select>
+          <select class="filter-select" [(ngModel)]="statusFilter" (ngModelChange)="page.set(1)">
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="archived">Archived</option>
+          </select>
+          @if (searchTerm || roleFilter || branchFilter || statusFilter) {
             <button class="btn btn-ghost" (click)="clearFilters()">Clear</button>
           }
           <span class="filter-count">{{ filtered().length }} user{{ filtered().length !== 1 ? 's' : '' }}</span>
         </div>
       </ng-container>
 
+      @if (banner()) {
+        <div class="notice" [class.notice--error]="bannerType() === 'error'">{{ banner() }}</div>
+      }
+
       @switch (state()) {
         @case ('loading') { <snt-page-state type="loading" /> }
-        @case ('error')   { <snt-page-state type="error" actionLabel="Retry" (action)="load()" /> }
+        @case ('error') { <snt-page-state type="error" actionLabel="Retry" (action)="load()" /> }
         @case ('ready') {
           @if (!filtered().length) {
-            <snt-page-state
-              type="empty"
-              [title]="searchTerm || roleFilter ? 'No matching users' : 'No users found'"
-              description="Users are created when branches are onboarded."
-            />
+            <snt-page-state type="empty" title="No users found" description="No users match your current filters." />
           } @else {
             <div class="table-wrapper">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Email</th>
+                    <th>User</th>
                     <th>Role</th>
                     <th>Branch</th>
                     <th>Status</th>
                     <th>Created</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (u of paginated(); track u.id) {
                     <tr>
-                      <td class="font-medium">{{ u.name }}</td>
-                      <td class="text-muted">{{ u.email }}</td>
                       <td>
-                        <snt-badge [label]="roleLabel(u.role)" [variant]="roleBadge(u.role)" />
+                        <div class="user-cell">
+                          <span class="avatar">{{ initials(u.name) }}</span>
+                          <span>
+                            <strong>{{ u.name }}</strong>
+                            <small>{{ u.email }}</small>
+                          </span>
+                        </div>
                       </td>
-                      <td class="text-muted">{{ u.branch?.name || '—' }}</td>
-                      <td>
-                        <snt-badge [label]="u.isActive ? 'Active' : 'Inactive'" [variant]="u.isActive ? 'success' : 'neutral'" />
-                      </td>
+                      <td><snt-badge [label]="roleLabel(u.role)" [variant]="roleBadge(u.role)" /></td>
+                      <td class="text-muted">{{ u.branch?.name || 'Head Office' }}</td>
+                      <td><snt-badge [label]="statusLabel(u)" [variant]="statusBadge(u)" /></td>
                       <td class="text-muted">{{ u.createdAt | date:'dd MMM yyyy' }}</td>
+                      <td>
+                        <div class="row-actions">
+                          <button class="btn btn-secondary btn-sm" (click)="openEdit(u)">Edit</button>
+                          <button class="btn btn-secondary btn-sm" (click)="resetPassword(u)">Reset</button>
+                          <button class="btn btn-danger btn-sm" (click)="confirmDelete(u)">Delete</button>
+                        </div>
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -96,66 +147,294 @@ type LoadState = 'loading' | 'error' | 'ready';
             </div>
             @if (totalPages() > 1) {
               <div class="pagination">
-                <button class="btn btn-secondary btn-sm" [disabled]="page() === 1" (click)="page.set(page() - 1)">← Prev</button>
+                <button class="btn btn-secondary btn-sm" [disabled]="page() === 1" (click)="page.set(page() - 1)">Prev</button>
                 <span class="pagination-info">Page {{ page() }} of {{ totalPages() }}</span>
-                <button class="btn btn-secondary btn-sm" [disabled]="page() === totalPages()" (click)="page.set(page() + 1)">Next →</button>
+                <button class="btn btn-secondary btn-sm" [disabled]="page() === totalPages()" (click)="page.set(page() + 1)">Next</button>
               </div>
             }
           }
         }
       }
     </snt-page-shell>
+
+    <snt-drawer [open]="drawerOpen()" [title]="form.id ? 'Edit User' : 'Create User'" [subtitle]="form.email || 'Issue a login account'" [wide]="true" (closed)="closeDrawer()">
+      <div class="form-grid">
+        <label class="form-field">
+          <span>Name *</span>
+          <input class="form-input" [(ngModel)]="form.name" />
+        </label>
+        <label class="form-field">
+          <span>Email *</span>
+          <input class="form-input" type="email" [(ngModel)]="form.email" />
+        </label>
+        <label class="form-field">
+          <span>Role *</span>
+          <select class="form-input" [(ngModel)]="form.role" (ngModelChange)="onRoleChange()">
+            @for (role of roles; track role.value) {
+              <option [value]="role.value">{{ role.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="form-field">
+          <span>Branch</span>
+          <select class="form-input" [(ngModel)]="form.branchId" [disabled]="form.role === 'super_admin'">
+            <option [ngValue]="null">{{ form.role === 'super_admin' ? 'Head Office' : 'Select branch' }}</option>
+            @for (branch of branches(); track branch.id) {
+              <option [ngValue]="branch.id">{{ branch.name }}@if (branch.city) { - {{ branch.city }} }</option>
+            }
+          </select>
+        </label>
+        @if (form.id) {
+          <label class="form-field">
+            <span>Status</span>
+            <select class="form-input" [(ngModel)]="form.status">
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+              <option value="archived">Archived</option>
+            </select>
+          </label>
+        } @else {
+          <label class="form-field">
+            <span>Initial Password</span>
+            <input class="form-input" [(ngModel)]="form.password" placeholder="Leave blank to generate" />
+          </label>
+        }
+      </div>
+
+      @if (formError()) {
+        <div class="notice notice--error">{{ formError() }}</div>
+      }
+
+      <div class="drawer-actions">
+        <button class="btn btn-secondary" (click)="closeDrawer()">Cancel</button>
+        <button class="btn btn-primary" [disabled]="saving()" (click)="saveUser()">{{ saving() ? 'Saving...' : 'Save User' }}</button>
+      </div>
+    </snt-drawer>
+
+    @if (secretNotice(); as notice) {
+      <div class="secret-panel">
+        <div>
+          <strong>{{ notice.title }}</strong>
+          <p>{{ notice.email }}</p>
+          <code>{{ notice.password }}</code>
+        </div>
+        <button class="btn btn-secondary btn-sm" (click)="copySecret(notice.password)">Copy</button>
+        <button class="btn btn-ghost btn-sm" (click)="secretNotice.set(null)">Close</button>
+      </div>
+    }
+
+    <snt-confirm-dialog
+      [open]="!!deleteTarget()"
+      title="Delete user?"
+      message="Unlinked users are deleted. Users with LMS, trainer, batch, finance or audit records are archived instead."
+      confirmLabel="Delete or Archive"
+      (confirm)="deleteUser()"
+      (cancel)="deleteTarget.set(null)"
+    />
   `,
   styles: [`
     .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; padding: 12px 16px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
-    .search-box { position: relative; flex: 1; min-width: 200px; }
-    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); pointer-events: none; }
-    .search-input { width: 100%; padding: 7px 10px 7px 32px; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: var(--font-size-sm); background: var(--color-bg); outline: none; }
-    .search-input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-light); }
-    .filter-select { padding: 7px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: var(--font-size-sm); background: var(--color-bg); outline: none; cursor: pointer; }
+    .filter-input, .filter-select, .form-input { padding: 8px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: var(--font-size-sm); background: var(--color-surface); outline: none; }
+    .filter-input { min-width: 220px; flex: 1; }
+    .filter-input:focus, .filter-select:focus, .form-input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-light); }
     .filter-count { font-size: var(--font-size-xs); color: var(--color-text-muted); margin-left: auto; white-space: nowrap; }
+    .user-cell { display: flex; align-items: center; gap: 10px; }
+    .user-cell strong, .user-cell small { display: block; }
+    .user-cell small { color: var(--color-text-muted); margin-top: 2px; }
+    .avatar { width: 32px; height: 32px; border-radius: var(--radius-md); display: inline-flex; align-items: center; justify-content: center; background: var(--color-primary-light); color: var(--color-primary-dark); font-weight: 700; flex-shrink: 0; }
+    .row-actions { display: flex; justify-content: flex-end; gap: 6px; }
     .btn-sm { padding: 5px 10px; font-size: var(--font-size-xs); }
     .pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 0; }
     .pagination-info { font-size: var(--font-size-sm); color: var(--color-text-muted); }
-    .font-medium { font-weight: 600; }
-    .text-muted { color: var(--color-text-muted); }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .form-field { display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--color-text-muted); }
+    .drawer-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border); }
+    .notice { padding: 10px 12px; border: 1px solid #bfdbfe; border-radius: var(--radius-md); background: #eff6ff; color: #1e40af; font-size: var(--font-size-sm); }
+    .notice--error { border-color: #fecaca; background: #fef2f2; color: var(--color-danger); }
+    .secret-panel { position: fixed; right: 24px; bottom: 24px; z-index: 250; width: min(460px, calc(100vw - 48px)); display: flex; align-items: center; gap: 10px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 14px; }
+    .secret-panel p { color: var(--color-text-muted); font-size: var(--font-size-xs); margin: 2px 0 8px; }
+    .secret-panel code { display: inline-block; padding: 4px 8px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+    @media (max-width: 720px) { .row-actions { flex-wrap: wrap; justify-content: flex-start; } .secret-panel { left: 12px; right: 12px; bottom: 12px; width: auto; flex-wrap: wrap; } }
   `],
 })
 export class UsersComponent implements OnInit {
-  private readonly api        = inject(ApiService);
+  private readonly api = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
 
+  readonly roles = ROLES;
   readonly state = signal<LoadState>('loading');
-  readonly all   = signal<UserRow[]>([]);
-  readonly page  = signal(1);
+  readonly all = signal<UserRow[]>([]);
+  readonly branches = signal<BranchOption[]>([]);
+  readonly page = signal(1);
+  readonly drawerOpen = signal(false);
+  readonly saving = signal(false);
+  readonly formError = signal<string | null>(null);
+  readonly banner = signal<string | null>(null);
+  readonly bannerType = signal<'info' | 'error'>('info');
+  readonly secretNotice = signal<SecretNotice>(null);
+  readonly deleteTarget = signal<UserRow | null>(null);
 
   searchTerm = '';
   roleFilter = '';
+  statusFilter = '';
+  branchFilter: number | null = null;
+  form: UserForm = this.emptyForm();
 
   readonly filtered = computed(() => {
     const term = this.searchTerm.toLowerCase().trim();
-    const role = this.roleFilter;
     return this.all().filter((u) => {
-      const matchSearch = !term ||
-        u.name.toLowerCase().includes(term) ||
-        u.email.toLowerCase().includes(term);
-      const matchRole = !role || this.roleName(u.role) === role;
-      return matchSearch && matchRole;
+      const matchSearch = !term || u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term);
+      const matchRole = !this.roleFilter || this.roleName(u.role) === this.roleFilter;
+      const matchStatus = !this.statusFilter || u.status === this.statusFilter;
+      const matchBranch = !this.branchFilter || u.branch?.id === this.branchFilter;
+      return matchSearch && matchRole && matchStatus && matchBranch;
     });
   });
 
   readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filtered().length / 20)));
-  readonly paginated  = computed(() => this.filtered().slice((this.page() - 1) * 20, this.page() * 20));
+  readonly paginated = computed(() => this.filtered().slice((this.page() - 1) * 20, this.page() * 20));
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.loadBranches();
+    this.load();
+  }
 
   load(): void {
     this.state.set('loading');
     this.api.get<UserRow[]>('/users')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next:  (data) => { this.all.set(data); this.state.set('ready'); },
+        next: (data) => { this.all.set(data); this.state.set('ready'); },
         error: () => this.state.set('error'),
+      });
+  }
+
+  loadBranches(): void {
+    this.api.get<BranchOption[]>('/branches')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: (branches) => this.branches.set(branches) });
+  }
+
+  openCreate(): void {
+    this.form = this.emptyForm();
+    this.formError.set(null);
+    this.drawerOpen.set(true);
+  }
+
+  openEdit(user: UserRow): void {
+    this.form = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: this.roleName(user.role),
+      branchId: user.branch?.id ?? null,
+      status: user.status ?? (user.isActive ? 'active' : 'suspended'),
+    };
+    this.formError.set(null);
+    this.drawerOpen.set(true);
+  }
+
+  closeDrawer(): void {
+    this.drawerOpen.set(false);
+    this.saving.set(false);
+  }
+
+  onRoleChange(): void {
+    if (this.form.role === 'super_admin') this.form.branchId = null;
+  }
+
+  saveUser(): void {
+    if (!this.form.name.trim() || !this.form.email.trim() || !this.form.role) {
+      this.formError.set('Name, email and role are required.');
+      return;
+    }
+    if (this.form.role !== 'super_admin' && !this.form.branchId) {
+      this.formError.set('Branch is required for this role.');
+      return;
+    }
+
+    this.saving.set(true);
+    this.formError.set(null);
+    const payload = { ...this.form, email: this.form.email.trim().toLowerCase() };
+
+    if (this.form.id) {
+      this.api.patch<UserRow>(`/users/${this.form.id}`, payload)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (user: UserRow) => {
+            this.upsert(user);
+            this.bannerType.set('info');
+            this.banner.set('User saved.');
+            this.closeDrawer();
+          },
+          error: (error: { error?: { message?: string }; message?: string }) => {
+            this.formError.set(error?.error?.message || error?.message || 'Failed to save user.');
+            this.saving.set(false);
+          },
+        });
+      return;
+    }
+
+    this.api.post<{ user: UserRow; initialPassword?: string }>('/users/create', payload)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result: { user: UserRow; initialPassword?: string }) => {
+          this.upsert(result.user);
+          if (result.initialPassword) {
+            this.secretNotice.set({ title: 'Initial credential issued', email: result.user.email, password: result.initialPassword });
+          }
+          this.bannerType.set('info');
+          this.banner.set('User saved.');
+          this.closeDrawer();
+        },
+        error: (error: { error?: { message?: string }; message?: string }) => {
+          this.formError.set(error?.error?.message || error?.message || 'Failed to save user.');
+          this.saving.set(false);
+        },
+      });
+  }
+
+  resetPassword(user: UserRow): void {
+    const password = window.prompt(`New password for ${user.email}. Leave blank to generate one-time password.`);
+    if (password === null) return;
+
+    this.api.post<{ user: UserRow; temporaryPassword: string }>(`/users/${user.id}/reset-password`, { password: password.trim() || undefined })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.upsert(result.user);
+          this.secretNotice.set({ title: 'Temporary credential issued', email: result.user.email, password: result.temporaryPassword });
+        },
+        error: (error) => this.showError(error?.error?.message || 'Failed to reset password.'),
+      });
+  }
+
+  confirmDelete(user: UserRow): void {
+    this.deleteTarget.set(user);
+  }
+
+  deleteUser(): void {
+    const target = this.deleteTarget();
+    if (!target) return;
+
+    this.api.delete<{ mode: 'deleted' | 'archived'; user?: UserRow }>(`/users/${target.id}`)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          if (result.mode === 'deleted') {
+            this.all.set(this.all().filter((u) => u.id !== target.id));
+            this.banner.set('User deleted.');
+          } else if (result.user) {
+            this.upsert(result.user);
+            this.banner.set('User has linked records and was archived.');
+          }
+          this.bannerType.set('info');
+          this.deleteTarget.set(null);
+        },
+        error: (error) => {
+          this.showError(error?.error?.message || 'Failed to delete user.');
+          this.deleteTarget.set(null);
+        },
       });
   }
 
@@ -164,22 +443,60 @@ export class UsersComponent implements OnInit {
   }
 
   roleLabel(role: { name: string } | string): string {
-    const key = this.roleName(role);
-    const map: Record<string, string> = {
-      super_admin: 'Super Admin', branch_admin: 'Branch Admin',
-      counselor: 'Counselor', teacher: 'Teacher', student: 'Student',
-    };
-    return map[key] ?? key;
+    return ROLES.find((item) => item.value === this.roleName(role))?.label ?? this.roleName(role);
   }
 
   roleBadge(role: { name: string } | string): BadgeVariant {
-    const key = this.roleName(role);
     const map: Record<string, BadgeVariant> = {
-      super_admin: 'danger', branch_admin: 'info',
-      counselor: 'warning', teacher: 'success', student: 'neutral',
+      super_admin: 'danger',
+      branch_admin: 'info',
+      counselor: 'warning',
+      teacher: 'success',
+      student: 'neutral',
     };
-    return map[key] ?? 'neutral';
+    return map[this.roleName(role)] ?? 'neutral';
   }
 
-  clearFilters(): void { this.searchTerm = ''; this.roleFilter = ''; this.page.set(1); }
+  statusLabel(user: UserRow): string {
+    if (user.status === 'archived') return 'Archived';
+    if (user.status === 'suspended') return 'Suspended';
+    return user.isActive ? 'Active' : 'Inactive';
+  }
+
+  statusBadge(user: UserRow): BadgeVariant {
+    if (user.status === 'archived') return 'neutral';
+    if (user.status === 'suspended') return 'danger';
+    return user.isActive ? 'success' : 'warning';
+  }
+
+  initials(name: string): string {
+    return name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U';
+  }
+
+  clearFilters(): void {
+    this.searchTerm = '';
+    this.roleFilter = '';
+    this.statusFilter = '';
+    this.branchFilter = null;
+    this.page.set(1);
+  }
+
+  copySecret(password: string): void {
+    navigator.clipboard?.writeText(password);
+  }
+
+  private emptyForm(): UserForm {
+    return { name: '', email: '', role: 'branch_admin', branchId: null, status: 'active', password: '' };
+  }
+
+  private upsert(user: UserRow): void {
+    const rows = this.all();
+    const index = rows.findIndex((item) => item.id === user.id);
+    this.all.set(index >= 0 ? rows.map((item) => item.id === user.id ? user : item) : [user, ...rows]);
+  }
+
+  private showError(message: string): void {
+    this.bannerType.set('error');
+    this.banner.set(message);
+  }
 }
