@@ -68,6 +68,7 @@ export interface BatchMaterial {
   fileUrl: string | null;
   externalUrl: string | null;
   isPublished: boolean;
+  archivedAt: string | null;
   createdAt: string;
   mediaAsset: { id: number; title: string; mediaType: string; fileUrl: string; mimeType: string | null; fileSizeKb: number | null } | null;
   createdBy: { id: number; name: string };
@@ -132,5 +133,24 @@ export class TeacherService {
     isPublished?: boolean;
   }): Observable<BatchMaterial> {
     return this.api.post<BatchMaterial>('/batch-materials', data);
+  }
+
+  updateMaterial(id: number, data: {
+    title?: string;
+    description?: string | null;
+    materialType?: string;
+    mediaAssetId?: number | null;
+    externalUrl?: string | null;
+    isPublished?: boolean;
+  }): Observable<BatchMaterial> {
+    return this.api.patch<BatchMaterial>(`/batch-materials/${id}`, data);
+  }
+
+  setMaterialPublished(id: number, isPublished: boolean): Observable<BatchMaterial> {
+    return this.api.patch<BatchMaterial>(`/batch-materials/${id}/publish`, { isPublished });
+  }
+
+  archiveMaterial(id: number): Observable<BatchMaterial> {
+    return this.api.delete<BatchMaterial>(`/batch-materials/${id}`);
   }
 }
