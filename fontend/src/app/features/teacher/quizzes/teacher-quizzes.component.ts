@@ -33,8 +33,15 @@ interface QuizQuestionForm {
         <button class="template-btn" [class.template-btn--active]="template() === 'custom'" (click)="applyTemplate('custom')" type="button">Custom<br><small>Mix question types</small></button>
       </div>
 
+      @if (!loadingBatches() && batches().length === 0) {
+        <div class="empty-state">
+          <strong>No assigned batches yet</strong>
+          <span>Quiz templates are available here, but a quiz can only be created after this teacher is assigned to at least one active batch.</span>
+        </div>
+      }
+
       <div class="grid">
-        <label><span>Batch *</span><select class="input" [(ngModel)]="form.batchId"><option [ngValue]="null">Select batch</option>@for (b of batches(); track b.id) { <option [ngValue]="b.id">{{ b.name }} - {{ b.course.name }} ({{ b.branch.name }})</option> }</select></label>
+        <label><span>Batch *</span><select class="input" [(ngModel)]="form.batchId" [disabled]="batches().length === 0"><option [ngValue]="null">Select batch</option>@for (b of batches(); track b.id) { <option [ngValue]="b.id">{{ b.name }} - {{ b.course.name }} ({{ b.branch.name }})</option> }</select></label>
         <label><span>Title *</span><input class="input" [(ngModel)]="form.title" placeholder="Daily revision quiz" /></label>
         <label><span>Topic</span><input class="input" [(ngModel)]="form.topic" placeholder="Last lecture topic" /></label>
         <label><span>Lecture date</span><input class="input" type="date" [(ngModel)]="form.lectureDate" /></label>
@@ -122,7 +129,7 @@ interface QuizQuestionForm {
       </div>
 
       @if (error()) { <div class="error">{{ error() }}</div> }
-      <div class="actions"><button class="btn btn-primary" [disabled]="saving()" (click)="createQuiz()">{{ saving() ? 'Saving...' : 'Create Quiz' }}</button></div>
+      <div class="actions"><button class="btn btn-primary" [disabled]="saving() || batches().length === 0" (click)="createQuiz()">{{ saving() ? 'Saving...' : 'Create Quiz' }}</button></div>
     </section>
 
     <section class="card">
@@ -144,6 +151,8 @@ interface QuizQuestionForm {
     .template-btn { min-width: 160px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); padding: 10px 12px; text-align: left; cursor: pointer; font-weight: 800; }
     .template-btn small, .preview-card small, label small { color: var(--color-text-muted); font-weight: 600; text-transform: none; }
     .template-btn--active { border-color: var(--layout-accent, #0d9488); background: var(--layout-accent-light, #ccfbf1); color: var(--layout-accent, #0d9488); }
+    .empty-state { display: grid; gap: 4px; margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-background-subtle); color: var(--color-text-muted); }
+    .empty-state strong { color: var(--color-text); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
     label { display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-xs); font-weight: 700; text-transform: uppercase; color: var(--color-text-muted); }
     .input { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 9px 10px; background: var(--color-surface); font-size: var(--font-size-sm); min-width: 0; }
@@ -184,12 +193,16 @@ export class TeacherQuizzesComponent implements OnInit {
   readonly questions = signal<QuizQuestionForm[]>([]);
   readonly activeQuestion = signal(0);
   readonly template = signal<QuizTemplate>('quick10');
+  readonly loadingBatches = signal(true);
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
   form = { batchId: null as number | null, title: 'Daily Revision Quiz', topic: '', lectureDate: '', scheduledAt: '', closesAt: '', durationMinutes: 10 };
 
   ngOnInit(): void {
-    this.teacherSvc.getMyBatches().subscribe((batches) => this.batches.set(batches));
+    this.teacherSvc.getMyBatches().subscribe({
+      next: (batches) => { this.batches.set(batches); this.loadingBatches.set(false); },
+      error: () => this.loadingBatches.set(false),
+    });
     this.loadQuizzes();
     this.applyTemplate('quick10');
   }

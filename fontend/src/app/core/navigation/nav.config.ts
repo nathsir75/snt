@@ -98,6 +98,7 @@ export const TEACHER_NAV: NavItem[] = [
   { label: 'Attendance',   icon: '✅', route: '/teacher/attendance',   group: 'Teaching' },
   { label: 'Schedule',     icon: '📅', route: '/teacher/schedule',     group: 'Teaching' },
   { label: 'Content',      icon: '🖥️', route: '/teacher/content',      group: 'Teaching' },
+  { label: 'Daily Quiz',   icon: '?',  route: '/teacher/quizzes',      group: 'Teaching' },
   { label: 'Alerts',       icon: '🔔', route: '/teacher/alerts',       group: 'Notifications' },
 ];
 

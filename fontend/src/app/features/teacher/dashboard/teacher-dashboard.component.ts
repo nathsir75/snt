@@ -79,7 +79,9 @@ import { AuthService } from '../../../core/auth/auth.service';
             </div>
           }
         </div>
+      }
 
+      @if (!loading() && !error()) {
         <!-- Quick links -->
         <div class="teacher-dashboard__section-title">Quick Actions</div>
         <div class="teacher-dashboard__quick-links">
