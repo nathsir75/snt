@@ -22,7 +22,6 @@ export class AuthService {
   readonly currentUser   = this._currentUser.asReadonly();
   readonly isLoggedIn    = computed(() => !!this._currentUser());
   readonly role          = computed(() => this._currentUser()?.role ?? null);
-  readonly scope         = computed(() => this._currentUser()?.scope ?? 'branch');
   readonly branchId      = computed(() => this._currentUser()?.branchId ?? null);
 
   // Granular role checks
@@ -33,7 +32,7 @@ export class AuthService {
   readonly isStudent     = computed(() => this.role() === ROLES.STUDENT);
 
   // Group checks
-  readonly isHoUser     = computed(() => this.isSuperAdmin() || this.scope() === 'global');
+  readonly isHoUser     = computed(() => this.isSuperAdmin());
   readonly isBranchUser = computed(() => this.isBranchAdmin() || this.isCounselor());
 
   login(payload: LoginRequest): Observable<AuthResponse> {
