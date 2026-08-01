@@ -7,7 +7,7 @@
 #   bash scripts/deploy-vps.sh
 #
 # Optional overrides:
-#   BRANCH=main PM2_APP=snt-api bash scripts/deploy-vps.sh
+#   BRANCH=main PM2_APP=snt-api APP_USER=mahendra bash scripts/deploy-vps.sh
 #   ALLOW_MERGE=true bash scripts/deploy-vps.sh
 #
 # The default Git mode is fast-forward only. If the VPS branch has local-only
@@ -21,6 +21,7 @@ APP_DIR="${APP_DIR:-/home/mahendra/apps/snteducation}"
 BRANCH="${BRANCH:-main}"
 REMOTE="${REMOTE:-origin}"
 PM2_APP="${PM2_APP:-snt-api}"
+APP_USER="${APP_USER:-mahendra}"
 
 BACKEND_DIR="${BACKEND_DIR:-$APP_DIR/backend}"
 FRONTEND_DIR="${FRONTEND_DIR:-$APP_DIR/fontend}"
@@ -50,6 +51,18 @@ run() {
   "$@"
 }
 
+run_pm2() {
+  log "pm2 $* (as $APP_USER)"
+  if [[ "$(id -un)" == "$APP_USER" ]]; then
+    pm2 "$@"
+    return
+  fi
+
+  local quoted_args
+  printf -v quoted_args '%q ' "$@"
+  sudo -H -u "$APP_USER" bash -lc "pm2 $quoted_args"
+}
+
 on_error() {
   local exit_code=$?
   printf '\nDeployment stopped safely at line %s with exit code %s.\n' "${BASH_LINENO[0]}" "$exit_code" >&2
@@ -62,7 +75,12 @@ require_cmd git
 require_cmd npm
 require_cmd npx
 require_cmd rsync
-require_cmd pm2
+if [[ "$(id -un)" == "$APP_USER" ]]; then
+  require_cmd pm2
+else
+  require_cmd sudo
+  sudo -H -u "$APP_USER" bash -lc 'command -v pm2 >/dev/null 2>&1' || fail "pm2 is not available for APP_USER=$APP_USER"
+fi
 
 [[ -d "$APP_DIR/.git" ]] || fail "APP_DIR is not a Git repo: $APP_DIR"
 [[ -d "$BACKEND_DIR" ]] || fail "Backend dir not found: $BACKEND_DIR"
@@ -72,7 +90,7 @@ require_cmd pm2
 cd "$APP_DIR"
 
 log "Starting SNT deployment"
-printf 'Repo: %s\nBranch: %s\nPM2 app: %s\nPublic root: %s\n' "$APP_DIR" "$BRANCH" "$PM2_APP" "$PUBLIC_ROOT"
+printf 'Repo: %s\nBranch: %s\nPM2 app: %s\nPM2 user: %s\nPublic root: %s\n' "$APP_DIR" "$BRANCH" "$PM2_APP" "$APP_USER" "$PUBLIC_ROOT"
 
 current_branch="$(git branch --show-current)"
 [[ "$current_branch" == "$BRANCH" ]] || fail "Expected branch '$BRANCH' but current branch is '$current_branch'."
@@ -114,8 +132,8 @@ run npm run db:generate
 run npm run build
 
 log "Restarting backend PM2 app"
-run pm2 restart "$PM2_APP" --update-env
-run pm2 save
+run_pm2 restart "$PM2_APP" --update-env
+run_pm2 save
 
 log "Installing frontend dependencies"
 cd "$FRONTEND_DIR"
@@ -136,7 +154,7 @@ log "Verification"
 cd "$APP_DIR"
 printf 'Git HEAD: %s\n' "$(git rev-parse --short HEAD)"
 printf 'Backend PM2 status:\n'
-pm2 status "$PM2_APP" || true
+run_pm2 status "$PM2_APP" || true
 printf '\nFrontend index:\n'
 ls -lah "$PUBLIC_ROOT/index.html"
 printf '\nFrontend asset count:\n'
