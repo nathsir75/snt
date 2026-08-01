@@ -41,15 +41,15 @@ export const usersController = {
 
   createUser: async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { name, email, password, role, branchId } = req.body;
-      console.log('[Users] CREATE REQUEST PAYLOAD:', { name, email, role, branchId });
+      const { name, email, password, role, branchId, scope } = req.body;
+      console.log('[Users] CREATE REQUEST PAYLOAD:', { name, email, role, branchId, scope });
 
       if (!name || !email || !role) {
         res.status(400).json({ message: 'name, email and role are required' });
         return;
       }
 
-      const result = await usersService.createUser({ name, email, password, role, branchId });
+      const result = await usersService.createUser({ name, email, password, role, branchId, scope });
       res.status(201).json(result);
     } catch (error: any) {
       const [status, message] = mapUserError(error.message, 'Failed to create user');
@@ -116,6 +116,8 @@ function mapUserError(code: string, fallback: string): [number, string] {
     INVALID_ROLE:        [400, 'Invalid role specified'],
     INVALID_STATUS:      [400, 'Invalid user status'],
     WEAK_PASSWORD:       [400, 'Password must be at least 8 characters'],
+    INVALID_SCOPE:       [400, 'Invalid user scope'],
+    GLOBAL_SCOPE_FORBIDDEN: [400, 'Global scope is only allowed for Head Office staff roles'],
     BRANCH_REQUIRED:     [400, 'branchId is required for this role'],
     BRANCH_NOT_FOUND:    [404, 'Branch not found'],
     USER_NOT_FOUND:      [404, 'User not found'],

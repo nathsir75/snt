@@ -1,7 +1,7 @@
 import prisma from '../../db/prisma';
 import { Prisma } from '@prisma/client';
 import { AuthPayload } from '../../common/types';
-import { isSuperAdmin } from '../../common/utils/scope.util';
+import { hasGlobalScope } from '../../common/utils/scope.util';
 
 const VALID_TYPES = ['followup_due', 'discount_decision', 'fee_due', 'system'] as const;
 type AlertType = (typeof VALID_TYPES)[number];
@@ -75,7 +75,7 @@ export async function createUserAlert(params: {
 // ─── Scope filter helper ──────────────────────────────────────────────────────
 
 function buildScopeFilter(user: AuthPayload): Record<string, unknown> {
-  if (isSuperAdmin(user.role)) return {};
+  if (hasGlobalScope(user)) return {};
   // branch_admin sees alerts for own branch OR targeted directly to them
   return {
     OR: [
@@ -97,7 +97,7 @@ export const alertService = {
       throw new Error('INVALID_ALERT_TYPE');
     }
     // branch_admin cannot filter by arbitrary branchId
-    if (!isSuperAdmin(user.role) && filters.branchId && filters.branchId !== user.branchId) {
+    if (!hasGlobalScope(user) && filters.branchId && filters.branchId !== user.branchId) {
       throw new Error('ACCESS_DENIED');
     }
 
@@ -107,7 +107,7 @@ export const alertService = {
     if (filters.isRead !== undefined) where['isRead'] = filters.isRead;
     if (filters.type)                 where['type']   = filters.type;
     // super_admin optional branchId drill-down
-    if (isSuperAdmin(user.role) && filters.branchId) where['branchId'] = filters.branchId;
+    if (hasGlobalScope(user) && filters.branchId) where['branchId'] = filters.branchId;
 
     console.log(`[AlertService] Listing alerts — role=${user.role}, filters:`, filters);
 
@@ -134,7 +134,7 @@ export const alertService = {
     if (!alert) throw new Error('ALERT_NOT_FOUND');
 
     // Verify the user can access this alert
-    if (!isSuperAdmin(user.role)) {
+    if (!hasGlobalScope(user)) {
       const accessible =
         (alert.branchId !== null && alert.branchId === user.branchId) ||
         (alert.userId   !== null && alert.userId   === user.userId);

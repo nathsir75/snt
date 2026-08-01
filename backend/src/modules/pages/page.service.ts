@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { isSuperAdmin } from '../../common/utils/scope.util';
+import { hasGlobalScope } from '../../common/utils/scope.util';
 import { Prisma } from '@prisma/client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ const PAGE_SELECT = {
 // ─── Branch access guard ──────────────────────────────────────────────────────
 
 function assertPageAccess(user: AuthPayload, pageBranchId: number): void {
-  if (!isSuperAdmin(user.role) && pageBranchId !== user.branchId) {
+  if (!hasGlobalScope(user) && pageBranchId !== user.branchId) {
     console.warn(`[PageService] Branch access denied — user branchId=${user.branchId}, page branchId=${pageBranchId}`);
     throw new Error('ACCESS_DENIED');
   }
@@ -55,7 +55,7 @@ export const pageService = {
     data: { branchId: number; title: string; slug: string; pageType?: string },
   ) => {
     // branch_admin can only create for own branch
-    if (!isSuperAdmin(user.role) && data.branchId !== user.branchId) {
+    if (!hasGlobalScope(user) && data.branchId !== user.branchId) {
       throw new Error('ACCESS_DENIED');
     }
 
@@ -90,7 +90,7 @@ export const pageService = {
   listPages: async (user: AuthPayload, filterBranchId?: number) => {
     const where: Prisma.PageWhereInput = {};
 
-    if (isSuperAdmin(user.role)) {
+    if (hasGlobalScope(user)) {
       if (filterBranchId) where.branchId = filterBranchId;
     } else {
       where.branchId = user.branchId as number;
@@ -396,3 +396,4 @@ export const pageService = {
     return { status: 'ok' as const, page, branch };
   },
 };
+

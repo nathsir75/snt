@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { isSuperAdmin } from '../../common/utils/scope.util';
+import { hasGlobalScope } from '../../common/utils/scope.util';
 import { assertTeacherBatchAccess } from '../../common/utils/teacher-scope.util';
 
 const VALID_STATUSES = ['active', 'completed', 'dropped'] as const;
@@ -16,7 +16,7 @@ const BATCH_STUDENT_SELECT = {
 };
 
 function assertBranchAccess(user: AuthPayload, branchId: number, context: string): void {
-  if (!isSuperAdmin(user.role) && branchId !== user.branchId) {
+  if (!hasGlobalScope(user) && branchId !== user.branchId) {
     console.warn(`[BatchStudentService] Branch access denied on ${context} — user branchId=${user.branchId}, resource branchId=${branchId}`);
     throw new Error('ACCESS_DENIED');
   }
@@ -111,3 +111,4 @@ export const batchStudentService = {
     return updated;
   },
 };
+

@@ -1,7 +1,7 @@
 import path from 'path';
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { isSuperAdmin } from '../../common/utils/scope.util';
+import { hasGlobalScope, isSuperAdmin } from '../../common/utils/scope.util';
 import { Prisma } from '@prisma/client';
 import {
   UPLOAD_CATEGORIES,
@@ -60,9 +60,9 @@ function validateUploadScope(
   }
 
   // ownerScope === 'branch'
-  const resolvedBranchId = isSuperAdmin(user.role) ? (branchId ?? null) : user.branchId;
+  const resolvedBranchId = hasGlobalScope(user) ? (branchId ?? null) : user.branchId;
   if (!resolvedBranchId) throw new Error('BRANCH_REQUIRED_FOR_SCOPE');
-  if (!isSuperAdmin(user.role) && branchId && branchId !== user.branchId) {
+  if (!hasGlobalScope(user) && branchId && branchId !== user.branchId) {
     throw new Error('ACCESS_DENIED');
   }
   return { resolvedBranchId };
@@ -185,7 +185,7 @@ export const uploadGatewayService = {
   ) => {
     const where: Prisma.MediaAssetWhereInput = { providerType: 'local' };
 
-    if (isSuperAdmin(user.role)) {
+    if (hasGlobalScope(user)) {
       // super_admin: own uploads by default; can see all local assets
       where.createdByUserId = user.userId;
     } else {
@@ -218,7 +218,7 @@ export const uploadGatewayService = {
     if (asset.providerType !== 'local') throw new Error('NOT_LOCAL_ASSET');
 
     // Access check
-    if (!isSuperAdmin(user.role)) {
+    if (!hasGlobalScope(user)) {
       const accessible = asset.ownerScope === 'branch' && asset.branchId === user.branchId;
       if (!accessible) throw new Error('ACCESS_DENIED');
     }
@@ -254,7 +254,7 @@ export const uploadGatewayService = {
     if (asset.providerType !== 'local') throw new Error('NOT_LOCAL_ASSET');
 
     // Access check
-    if (!isSuperAdmin(user.role)) {
+    if (!hasGlobalScope(user)) {
       const accessible = asset.ownerScope === 'branch' && asset.branchId === user.branchId;
       if (!accessible) throw new Error('ACCESS_DENIED');
     }

@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { getBranchFilter, isSuperAdmin } from '../../common/utils/scope.util';
+import { getBranchFilter, hasGlobalScope } from '../../common/utils/scope.util';
 
 const STUDENT_SELECT = {
   id: true,
@@ -25,7 +25,7 @@ function validateFees(totalFees: number, discount: number): void {
 }
 
 function assertBranchAccess(user: AuthPayload, branchId: number): void {
-  if (!isSuperAdmin(user.role) && branchId !== user.branchId) {
+  if (!hasGlobalScope(user) && branchId !== user.branchId) {
     console.warn(
       `[StudentService] Branch access denied — user.branchId=${user.branchId}, resource.branchId=${branchId}, role=${user.role}`
     );
@@ -149,13 +149,15 @@ export const studentService = {
     return student;
   },
 
-  getBranchSummary: async (branchId: number) => {
+  getBranchSummary: async (branchId?: number) => {
+    const where = branchId ? { branchId } : {};
     const [total, fromEnquiry] = await Promise.all([
-      prisma.student.count({ where: { branchId } }),
-      prisma.student.count({ where: { branchId, enquiryId: { not: null } } }),
+      prisma.student.count({ where }),
+      prisma.student.count({ where: { ...where, enquiryId: { not: null } } }),
     ]);
 
-    console.log(`[StudentService] Branch summary for branchId=${branchId}: total=${total}, fromEnquiry=${fromEnquiry}`);
+    console.log(`[StudentService] Student summary for branchId=${branchId ?? 'all'}: total=${total}, fromEnquiry=${fromEnquiry}`);
     return { branchId, totalStudents: total, convertedFromEnquiry: fromEnquiry };
   },
 };
+

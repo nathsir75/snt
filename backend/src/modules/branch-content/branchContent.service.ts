@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { isSuperAdmin } from '../../common/utils/scope.util';
+import { hasGlobalScope } from '../../common/utils/scope.util';
 import { Prisma } from '@prisma/client';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -27,13 +27,13 @@ export interface CollectionItem {
 // ── Branch access guard ───────────────────────────────────────────────────────
 
 function assertBranchAccess(user: AuthPayload, branchId: number): void {
-  if (!isSuperAdmin(user.role) && branchId !== user.branchId) {
+  if (!hasGlobalScope(user) && branchId !== user.branchId) {
     throw new Error('ACCESS_DENIED');
   }
 }
 
 function resolveBranchId(user: AuthPayload, bodyBranchId?: number): number {
-  if (isSuperAdmin(user.role)) {
+  if (hasGlobalScope(user)) {
     if (!bodyBranchId) throw new Error('BRANCH_REQUIRED');
     return bodyBranchId;
   }
@@ -46,7 +46,7 @@ function resolveBranchId(user: AuthPayload, bodyBranchId?: number): number {
 export const branchContentService = {
 
   list: async (user: AuthPayload, collectionType?: CollectionType) => {
-    const branchId = isSuperAdmin(user.role) ? undefined : (user.branchId as number);
+    const branchId = hasGlobalScope(user) ? undefined : (user.branchId as number);
     const where: Prisma.BranchContentItemWhereInput = {
       ...(branchId !== undefined && { branchId }),
       ...(collectionType && { collectionType }),

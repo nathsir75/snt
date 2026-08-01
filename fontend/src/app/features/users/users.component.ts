@@ -17,6 +17,7 @@ interface UserRow {
   name: string;
   email: string;
   role: { name: string } | string;
+  scope: 'global' | 'branch';
   isActive: boolean;
   status: 'active' | 'suspended' | 'archived';
   createdAt: string;
@@ -35,6 +36,7 @@ interface UserForm {
   name: string;
   email: string;
   role: string;
+  scope: 'global' | 'branch';
   branchId: number | null;
   status: 'active' | 'suspended' | 'archived';
   password?: string;
@@ -50,6 +52,8 @@ const ROLES = [
   { value: 'teacher', label: 'Teacher' },
   { value: 'student', label: 'Student' },
 ];
+
+const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor']);
 
 @Component({
   selector: 'snt-users',
@@ -76,7 +80,8 @@ const ROLES = [
             }
           </select>
           <select class="filter-select" [(ngModel)]="branchFilter" (ngModelChange)="page.set(1)">
-            <option [ngValue]="null">All Branches</option>
+            <option [ngValue]="null">All Scopes</option>
+            <option [ngValue]="0">Head Office / Global</option>
             @for (branch of branches(); track branch.id) {
               <option [ngValue]="branch.id">{{ branch.name }}</option>
             }
@@ -87,7 +92,7 @@ const ROLES = [
             <option value="suspended">Suspended</option>
             <option value="archived">Archived</option>
           </select>
-          @if (searchTerm || roleFilter || branchFilter || statusFilter) {
+          @if (searchTerm || roleFilter || branchFilter !== null || statusFilter) {
             <button class="btn btn-ghost" (click)="clearFilters()">Clear</button>
           }
           <span class="filter-count">{{ filtered().length }} user{{ filtered().length !== 1 ? 's' : '' }}</span>
@@ -130,7 +135,13 @@ const ROLES = [
                         </div>
                       </td>
                       <td><snt-badge [label]="roleLabel(u.role)" [variant]="roleBadge(u.role)" /></td>
-                      <td class="text-muted">{{ u.branch?.name || 'Head Office' }}</td>
+                      <td>
+                        @if (isGlobalUser(u)) {
+                          <snt-badge label="Head Office / Global" variant="primary" />
+                        } @else {
+                          <span class="text-muted">{{ u.branch?.name || 'Unassigned' }}</span>
+                        }
+                      </td>
                       <td><snt-badge [label]="statusLabel(u)" [variant]="statusBadge(u)" /></td>
                       <td class="text-muted">{{ u.createdAt | date:'dd MMM yyyy' }}</td>
                       <td>
@@ -176,14 +187,29 @@ const ROLES = [
           </select>
         </label>
         <label class="form-field">
-          <span>Branch</span>
-          <select class="form-input" [(ngModel)]="form.branchId" [disabled]="form.role === 'super_admin'">
-            <option [ngValue]="null">{{ form.role === 'super_admin' ? 'Head Office' : 'Select branch' }}</option>
-            @for (branch of branches(); track branch.id) {
-              <option [ngValue]="branch.id">{{ branch.name }}@if (branch.city) { - {{ branch.city }} }</option>
+          <span>Scope / Branch</span>
+          <select class="form-input" [(ngModel)]="scopeSelection" (ngModelChange)="onScopeSelectionChange($event)">
+            @if (canBeGlobal(form.role)) {
+              <option value="global">Head Office / Global</option>
             }
+            <option value="branch">Branch specific</option>
           </select>
         </label>
+        @if (form.scope === 'branch') {
+          <label class="form-field">
+            <span>Branch *</span>
+            <select class="form-input" [(ngModel)]="form.branchId">
+              <option [ngValue]="null">Select branch</option>
+              @for (branch of branches(); track branch.id) {
+                <option [ngValue]="branch.id">{{ branch.name }}@if (branch.city) { - {{ branch.city }} }</option>
+              }
+            </select>
+          </label>
+        } @else {
+          <div class="scope-note">
+            This account can work across all branches. Use only for Head Office staff.
+          </div>
+        }
         @if (form.id) {
           <label class="form-field">
             <span>Status</span>
@@ -248,6 +274,7 @@ const ROLES = [
     .pagination-info { font-size: var(--font-size-sm); color: var(--color-text-muted); }
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
     .form-field { display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--color-text-muted); }
+    .scope-note { align-self: end; padding: 10px 12px; border: 1px solid #bfdbfe; border-radius: var(--radius-md); background: #eff6ff; color: #1e40af; font-size: var(--font-size-sm); line-height: 1.4; }
     .drawer-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border); }
     .notice { padding: 10px 12px; border: 1px solid #bfdbfe; border-radius: var(--radius-md); background: #eff6ff; color: #1e40af; font-size: var(--font-size-sm); }
     .notice--error { border-color: #fecaca; background: #fef2f2; color: var(--color-danger); }
@@ -278,6 +305,7 @@ export class UsersComponent implements OnInit {
   roleFilter = '';
   statusFilter = '';
   branchFilter: number | null = null;
+  scopeSelection: 'global' | 'branch' = 'global';
   form: UserForm = this.emptyForm();
 
   readonly filtered = computed(() => {
@@ -286,7 +314,8 @@ export class UsersComponent implements OnInit {
       const matchSearch = !term || u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term);
       const matchRole = !this.roleFilter || this.roleName(u.role) === this.roleFilter;
       const matchStatus = !this.statusFilter || u.status === this.statusFilter;
-      const matchBranch = !this.branchFilter || u.branch?.id === this.branchFilter;
+      const matchBranch = this.branchFilter === null ||
+        (this.branchFilter === 0 ? this.isGlobalUser(u) : u.branch?.id === this.branchFilter);
       return matchSearch && matchRole && matchStatus && matchBranch;
     });
   });
@@ -317,6 +346,7 @@ export class UsersComponent implements OnInit {
 
   openCreate(): void {
     this.form = this.emptyForm();
+    this.scopeSelection = this.form.scope;
     this.formError.set(null);
     this.drawerOpen.set(true);
   }
@@ -327,9 +357,11 @@ export class UsersComponent implements OnInit {
       name: user.name,
       email: user.email,
       role: this.roleName(user.role),
+      scope: user.scope ?? (user.branch ? 'branch' : 'global'),
       branchId: user.branch?.id ?? null,
       status: user.status ?? (user.isActive ? 'active' : 'suspended'),
     };
+    this.scopeSelection = this.form.scope;
     this.formError.set(null);
     this.drawerOpen.set(true);
   }
@@ -340,7 +372,17 @@ export class UsersComponent implements OnInit {
   }
 
   onRoleChange(): void {
-    if (this.form.role === 'super_admin') this.form.branchId = null;
+    if (!this.canBeGlobal(this.form.role) && this.form.scope === 'global') {
+      this.form.scope = 'branch';
+    }
+    if (this.form.role === 'super_admin') this.form.scope = 'global';
+    if (this.form.scope === 'global') this.form.branchId = null;
+    this.scopeSelection = this.form.scope;
+  }
+
+  onScopeSelectionChange(value: 'global' | 'branch'): void {
+    this.form.scope = value;
+    if (value === 'global') this.form.branchId = null;
   }
 
   saveUser(): void {
@@ -348,8 +390,12 @@ export class UsersComponent implements OnInit {
       this.formError.set('Name, email and role are required.');
       return;
     }
-    if (this.form.role !== 'super_admin' && !this.form.branchId) {
+    if (this.form.scope === 'branch' && !this.form.branchId) {
       this.formError.set('Branch is required for this role.');
+      return;
+    }
+    if (this.form.scope === 'global' && !this.canBeGlobal(this.form.role)) {
+      this.formError.set('Global scope is only for Head Office staff roles.');
       return;
     }
 
@@ -469,6 +515,14 @@ export class UsersComponent implements OnInit {
     return user.isActive ? 'success' : 'warning';
   }
 
+  canBeGlobal(role: string): boolean {
+    return GLOBAL_ALLOWED_ROLES.has(role);
+  }
+
+  isGlobalUser(user: UserRow): boolean {
+    return user.scope === 'global';
+  }
+
   initials(name: string): string {
     return name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U';
   }
@@ -486,7 +540,7 @@ export class UsersComponent implements OnInit {
   }
 
   private emptyForm(): UserForm {
-    return { name: '', email: '', role: 'branch_admin', branchId: null, status: 'active', password: '' };
+    return { name: '', email: '', role: 'branch_admin', scope: 'global', branchId: null, status: 'active', password: '' };
   }
 
   private upsert(user: UserRow): void {

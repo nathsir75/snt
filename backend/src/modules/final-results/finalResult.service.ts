@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { getBranchFilter, isSuperAdmin } from '../../common/utils/scope.util';
+import { getBranchFilter, hasGlobalScope } from '../../common/utils/scope.util';
 import { createBranchAlert } from '../alerts/alert.service';
 
 const RESULT_SELECT = {
@@ -19,7 +19,7 @@ const RESULT_SELECT = {
 };
 
 function assertBranchAccess(user: AuthPayload, branchId: number): void {
-  if (!isSuperAdmin(user.role) && branchId !== user.branchId) {
+  if (!hasGlobalScope(user) && branchId !== user.branchId) {
     console.warn(`[FinalResultService] Branch access denied — user branchId=${user.branchId}, resource branchId=${branchId}`);
     throw new Error('ACCESS_DENIED');
   }
@@ -97,14 +97,14 @@ export const finalResultService = {
 
   // ─── 2. List results ────────────────────────────────────────────────────────
   list: async (user: AuthPayload, filters: { resultStatus?: string; branchId?: number }) => {
-    if (!isSuperAdmin(user.role) && filters.branchId && filters.branchId !== user.branchId) {
+    if (!hasGlobalScope(user) && filters.branchId && filters.branchId !== user.branchId) {
       throw new Error('ACCESS_DENIED');
     }
 
     const branchFilter = getBranchFilter(user);
     const where: Record<string, unknown> = { ...branchFilter };
     if (filters.resultStatus) where['resultStatus'] = filters.resultStatus;
-    if (isSuperAdmin(user.role) && filters.branchId) where['branchId'] = filters.branchId;
+    if (hasGlobalScope(user) && filters.branchId) where['branchId'] = filters.branchId;
 
     return prisma.finalExamResult.findMany({
       where,
@@ -150,3 +150,4 @@ export const finalResultService = {
     };
   },
 };
+

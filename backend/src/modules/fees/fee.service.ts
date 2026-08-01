@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { getBranchFilter, isSuperAdmin } from '../../common/utils/scope.util';
+import { getBranchFilter, hasGlobalScope } from '../../common/utils/scope.util';
 
 const VALID_PAYMENT_MODES = ['cash', 'upi', 'card', 'bank_transfer'] as const;
 
@@ -29,7 +29,7 @@ const STUDENT_FEE_SELECT = {
 };
 
 function assertBranchAccess(user: AuthPayload, branchId: number): void {
-  if (!isSuperAdmin(user.role) && branchId !== user.branchId) {
+  if (!hasGlobalScope(user) && branchId !== user.branchId) {
     console.warn(`[FeeService] Branch access denied — user branchId=${user.branchId}, resource branchId=${branchId}`);
     throw new Error('ACCESS_DENIED');
   }
@@ -137,19 +137,20 @@ export const feeService = {
     return { student, payments, totalFees: student.finalFees, totalPaid, remainingDue };
   },
 
-  getBranchSummary: async (branchId: number) => {
+  getBranchSummary: async (branchId?: number) => {
+    const where = branchId ? { branchId } : {};
     const result = await prisma.feePayment.aggregate({
-      where: { branchId },
+      where,
       _sum:   { amount: true },
       _count: { id: true },
     });
 
     const totalStudentsWithPayments = await prisma.feePayment.groupBy({
       by: ['studentId'],
-      where: { branchId },
+      where,
     });
 
-    console.log(`[FeeService] Branch summary for branchId=${branchId}`);
+    console.log(`[FeeService] Fee summary for branchId=${branchId ?? 'all'}`);
     return {
       branchId,
       totalCollected:             result._sum.amount ?? 0,
@@ -189,3 +190,4 @@ export const feeService = {
     };
   },
 };
+

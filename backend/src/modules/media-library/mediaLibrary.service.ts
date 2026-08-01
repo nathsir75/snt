@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { isSuperAdmin } from '../../common/utils/scope.util';
+import { hasGlobalScope, isSuperAdmin } from '../../common/utils/scope.util';
 import { Prisma } from '@prisma/client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ const PUBLIC_ASSET_SELECT = {
 // ─── Access guard ─────────────────────────────────────────────────────────────
 
 function assertAssetAccess(user: AuthPayload, asset: { ownerScope: string; branchId: number | null }): void {
-  if (isSuperAdmin(user.role)) return;
+  if (hasGlobalScope(user)) return;
   // branch_admin can access global assets or own branch assets
   const accessible =
     asset.ownerScope === 'global' ||
@@ -94,10 +94,10 @@ export const mediaLibraryService = {
     }
 
     if (data.ownerScope === 'branch') {
-      const branchId = isSuperAdmin(user.role) ? data.branchId : user.branchId;
+      const branchId = hasGlobalScope(user) ? data.branchId : user.branchId;
       if (!branchId) throw new Error('BRANCH_REQUIRED_FOR_SCOPE');
       // branch_admin cannot create for another branch
-      if (!isSuperAdmin(user.role) && data.branchId && data.branchId !== user.branchId) {
+      if (!hasGlobalScope(user) && data.branchId && data.branchId !== user.branchId) {
         throw new Error('ACCESS_DENIED');
       }
       data.branchId = branchId;
@@ -142,8 +142,8 @@ export const mediaLibraryService = {
   ) => {
     const where: Prisma.MediaAssetWhereInput = {};
 
-    if (isSuperAdmin(user.role)) {
-      // super_admin: optional filters
+    if (hasGlobalScope(user)) {
+      // global users: optional filters
       if (filters.branchId)    where.branchId   = filters.branchId;
       if (filters.ownerScope)  where.ownerScope = filters.ownerScope;
     } else {

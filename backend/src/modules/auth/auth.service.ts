@@ -9,6 +9,7 @@ export interface AuthUserPayload {
   email: string;
   role: Role;
   branchId: number | null;
+  scope: 'global' | 'branch';
   isActive: boolean;
   branch: {
     id: number;
@@ -51,7 +52,7 @@ export const authService = {
     }
 
     const roleName = user.role.name as Role;
-    const payload  = { userId: user.id, role: roleName, branchId: user.branchId };
+    const payload  = { userId: user.id, role: roleName, branchId: user.branchId, scope: user.scope as 'global' | 'branch' };
     const token    = jwt.sign(payload, process.env.JWT_SECRET as string, { expiresIn: '1d' });
 
     console.log(`[Auth] Login success — email: ${email}, role: ${roleName}`);
@@ -62,6 +63,7 @@ export const authService = {
       email:    user.email,
       role:     roleName,
       branchId: user.branchId,
+      scope:    user.scope as 'global' | 'branch',
       isActive: user.isActive,
       branch:   user.branch
         ? { id: user.branch.id, name: user.branch.name, code: user.branch.code, city: user.branch.city, isActive: user.branch.status === 'active' }
@@ -88,6 +90,7 @@ export const authService = {
       email:    user.email,
       role:     user.role.name as Role,
       branchId: user.branchId,
+      scope:    user.scope as 'global' | 'branch',
       isActive: user.isActive,
       branch:   user.branch
         ? { id: user.branch.id, name: user.branch.name, code: user.branch.code, city: user.branch.city, isActive: user.branch.status === 'active' }

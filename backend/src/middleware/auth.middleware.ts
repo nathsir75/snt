@@ -17,14 +17,14 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as AuthPayload;
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { isActive: true, status: true },
+      select: { isActive: true, status: true, scope: true, branchId: true },
     });
     if (!user || !user.isActive || user.status !== 'active') {
       res.status(401).json({ error: 'User account is not active' });
       return;
     }
     console.log(`[Auth] Token verified for userId: ${decoded.userId}, role: ${decoded.role}`);
-    req.user = decoded;
+    req.user = { ...decoded, scope: user.scope as 'global' | 'branch', branchId: user.branchId };
     next();
   } catch (error) {
     console.error('[Auth] Invalid or expired token');

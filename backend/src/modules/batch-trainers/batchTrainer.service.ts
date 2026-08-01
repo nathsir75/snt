@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { isSuperAdmin } from '../../common/utils/scope.util';
+import { hasGlobalScope } from '../../common/utils/scope.util';
 
 const BATCH_TRAINER_SELECT = {
   id: true,
@@ -11,7 +11,7 @@ const BATCH_TRAINER_SELECT = {
 };
 
 function assertBranchAccess(user: AuthPayload, branchId: number, ctx: string): void {
-  if (!isSuperAdmin(user.role) && branchId !== user.branchId) {
+  if (!hasGlobalScope(user) && branchId !== user.branchId) {
     console.warn(`[BatchTrainerService] Branch access denied on ${ctx} — user branchId=${user.branchId}`);
     throw new Error('ACCESS_DENIED');
   }
@@ -84,3 +84,4 @@ export const batchTrainerService = {
     });
   },
 };
+

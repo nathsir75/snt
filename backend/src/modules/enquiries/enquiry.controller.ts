@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../../common/types';
 import { enquiryService } from './enquiry.service';
-import { isSuperAdmin } from '../../common/utils/scope.util';
+import { hasGlobalScope } from '../../common/utils/scope.util';
 import prisma from '../../db/prisma';
 
 const ERROR_MAP: Record<string, [number, string]> = {
@@ -9,7 +9,7 @@ const ERROR_MAP: Record<string, [number, string]> = {
   ENQUIRY_NOT_FOUND:      [404, 'Enquiry not found'],
   ACCESS_DENIED:          [403, 'Access denied. This enquiry does not belong to your branch'],
   INVALID_STATUS:         [400, 'Invalid status. Allowed: new, contacted, follow_up, converted, lost'],
-  BRANCH_REQUIRED:        [400, 'branchId is required for super_admin'],
+  BRANCH_REQUIRED:        [400, 'branchId is required for Head Office / Global users'],
   NO_BRANCH_ASSIGNED:     [403, 'No branch assigned to your account. Contact super admin.'],
 };
 
@@ -60,15 +60,15 @@ export const enquiryController = {
 
       let resolvedBranchId: number;
 
-      if (isSuperAdmin(user.role)) {
-        // super_admin must explicitly provide branchId
+      if (hasGlobalScope(user)) {
+        // Global users must explicitly provide branchId.
         const bodyBranchId = parseInt(req.body.branchId);
         if (!req.body.branchId || isNaN(bodyBranchId)) {
-          res.status(400).json({ error: 'branchId is required for super_admin' });
+          res.status(400).json({ error: 'branchId is required for Head Office / Global users' });
           return;
         }
         resolvedBranchId = bodyBranchId;
-        console.log(`[Enquiries] super_admin creating enquiry for branchId=${resolvedBranchId}`);
+        console.log(`[Enquiries] global user creating enquiry for branchId=${resolvedBranchId}`);
       } else {
         // branch_admin — derive branchId from token, never trust body
         if (!user.branchId) {

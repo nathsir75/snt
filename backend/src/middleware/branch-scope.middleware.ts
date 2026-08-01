@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../common/types';
-import { isSuperAdmin, isBranchScoped } from '../common/utils/scope.util';
+import { hasGlobalScope, isBranchScoped } from '../common/utils/scope.util';
 
 export function branchScope(req: AuthRequest, res: Response, next: NextFunction): void {
   const user = req.user;
@@ -10,8 +10,8 @@ export function branchScope(req: AuthRequest, res: Response, next: NextFunction)
     return;
   }
 
-  if (isSuperAdmin(user.role)) {
-    console.log(`[BranchScope] super_admin access — unrestricted`);
+  if (hasGlobalScope(user)) {
+    console.log(`[BranchScope] global access — role=${user.role}, scope=${user.scope ?? 'legacy'}`);
     next();
     return;
   }

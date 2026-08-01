@@ -16,6 +16,7 @@ export interface AuthResponse {
 export interface TokenPayload {
   userId: number;
   role: string;
+  scope: 'global' | 'branch';
   branchId: number | null;
   iat: number;
   exp: number;

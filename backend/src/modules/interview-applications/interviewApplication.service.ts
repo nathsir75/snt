@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { getBranchFilter, isSuperAdmin } from '../../common/utils/scope.util';
+import { getBranchFilter, hasGlobalScope } from '../../common/utils/scope.util';
 import { createBranchAlert } from '../alerts/alert.service';
 
 const VALID_STATUSES = ['applied', 'shortlisted', 'rejected', 'selected'] as const;
@@ -30,7 +30,7 @@ export const interviewApplicationService = {
     const student = await prisma.student.findUnique({ where: { id: data.studentId } });
     if (!student) throw new Error('STUDENT_NOT_FOUND');
 
-    if (!isSuperAdmin(user.role) && student.branchId !== user.branchId) {
+    if (!hasGlobalScope(user) && student.branchId !== user.branchId) {
       console.warn(`[InterviewAppService] Branch access denied — studentId=${data.studentId}`);
       throw new Error('ACCESS_DENIED');
     }
@@ -60,7 +60,7 @@ export const interviewApplicationService = {
     const branchFilter = getBranchFilter(user);
     // For branch_admin, scope via student's branchId
     const where: Record<string, unknown> = {};
-    if (!isSuperAdmin(user.role)) {
+    if (!hasGlobalScope(user)) {
       where['student'] = { branchId: user.branchId };
     }
     if (filters.interviewId) where['interviewId'] = filters.interviewId;
@@ -109,3 +109,4 @@ export const interviewApplicationService = {
     return updated;
   },
 };
+

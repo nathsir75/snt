@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { getBranchFilter, isSuperAdmin } from '../../common/utils/scope.util';
+import { getBranchFilter, hasGlobalScope } from '../../common/utils/scope.util';
 
 const VALID_STATUSES = ['new', 'contacted', 'follow_up', 'converted', 'lost'] as const;
 
@@ -72,7 +72,7 @@ export const enquiryService = {
 
     if (!enquiry) throw new Error('ENQUIRY_NOT_FOUND');
 
-    if (!isSuperAdmin(user.role) && enquiry.branch.id !== user.branchId) {
+    if (!hasGlobalScope(user) && enquiry.branch.id !== user.branchId) {
       console.warn(`[EnquiryService] Access denied — userId branch mismatch on enquiry id=${id}`);
       throw new Error('ACCESS_DENIED');
     }
@@ -92,7 +92,7 @@ export const enquiryService = {
     const enquiry = await prisma.enquiry.findUnique({ where: { id } });
     if (!enquiry) throw new Error('ENQUIRY_NOT_FOUND');
 
-    if (!isSuperAdmin(user.role) && enquiry.branchId !== user.branchId) {
+    if (!hasGlobalScope(user) && enquiry.branchId !== user.branchId) {
       console.warn(`[EnquiryService] Update denied — branch mismatch on enquiry id=${id}`);
       throw new Error('ACCESS_DENIED');
     }
@@ -110,3 +110,4 @@ export const enquiryService = {
     return updated;
   },
 };
+

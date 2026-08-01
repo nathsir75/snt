@@ -2,12 +2,13 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { getBranchFilter, isSuperAdmin } from '../../common/utils/scope.util';
+import { getBranchFilter, hasGlobalScope } from '../../common/utils/scope.util';
 
 const USER_SELECT = {
   id: true,
   name: true,
   email: true,
+  scope: true,
   isActive: true,
   status: true,
   archivedAt: true,
@@ -19,6 +20,8 @@ const USER_SELECT = {
 };
 
 const VALID_STATUSES = new Set(['active', 'suspended', 'archived']);
+const VALID_SCOPES = new Set(['global', 'branch']);
+const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor']);
 const MIN_PASSWORD_LENGTH = 8;
 
 function normalizeEmail(email: string): string {
@@ -42,18 +45,28 @@ function statusFlags(status: string) {
   };
 }
 
-async function validateRoleAndBranch(roleName: string, branchId?: number | null) {
+function normalizeScope(roleName: string, scope?: string, branchId?: number | null): 'global' | 'branch' {
+  if (scope !== undefined && !VALID_SCOPES.has(scope)) throw new Error('INVALID_SCOPE');
+  if (roleName === 'super_admin') return 'global';
+  if (scope === 'global') return 'global';
+  return branchId ? 'branch' : 'branch';
+}
+
+async function validateRoleBranchAndScope(roleName: string, branchId?: number | null, rawScope?: string) {
   const role = await prisma.role.findUnique({ where: { name: roleName } });
   if (!role) throw new Error('INVALID_ROLE');
 
-  if (!isSuperAdmin(roleName) && !branchId) throw new Error('BRANCH_REQUIRED');
+  const scope = normalizeScope(roleName, rawScope, branchId);
 
-  if (branchId) {
+  if (scope === 'global' && !GLOBAL_ALLOWED_ROLES.has(roleName)) throw new Error('GLOBAL_SCOPE_FORBIDDEN');
+  if (scope === 'branch' && !branchId) throw new Error('BRANCH_REQUIRED');
+
+  if (branchId && scope === 'branch') {
     const branch = await prisma.branch.findUnique({ where: { id: branchId } });
     if (!branch) throw new Error('BRANCH_NOT_FOUND');
   }
 
-  return role;
+  return { role, scope };
 }
 
 async function syncTeacherAssignmentsFromTrainer(userId: number, email: string, roleName: string, branchId: number | null | undefined) {
@@ -98,7 +111,7 @@ async function userHasLinkedRecords(userId: number): Promise<boolean> {
 export const usersService = {
   getAllUsers: async (user: AuthPayload, filters?: { search?: string; role?: string; status?: string; branchId?: number }) => {
     const filter: any = { ...getBranchFilter(user) };
-    if (filters?.branchId && isSuperAdmin(user.role)) filter.branchId = filters.branchId;
+    if (filters?.branchId && hasGlobalScope(user)) filter.branchId = filters.branchId;
     if (filters?.role) filter.role = { name: filters.role };
     if (filters?.status && VALID_STATUSES.has(filters.status)) filter.status = filters.status;
     if (filters?.search) {
@@ -128,6 +141,7 @@ export const usersService = {
     password?: string;
     role: string;
     branchId?: number | null;
+    scope?: string;
   }) => {
     const name = cleanText(data.name);
     const email = normalizeEmail(data.email);
@@ -135,7 +149,7 @@ export const usersService = {
     if (!name || !email) throw new Error('INVALID_INPUT');
     if (password.length < MIN_PASSWORD_LENGTH) throw new Error('WEAK_PASSWORD');
 
-    const role = await validateRoleAndBranch(data.role, data.branchId);
+    const { role, scope } = await validateRoleBranchAndScope(data.role, data.branchId, data.scope);
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) throw new Error('EMAIL_TAKEN');
 
@@ -146,13 +160,14 @@ export const usersService = {
         email,
         password: hashedPassword,
         roleId: role.id,
-        branchId: data.branchId ?? null,
+        scope,
+        branchId: scope === 'global' ? null : data.branchId ?? null,
         ...statusFlags('active'),
       },
       select: USER_SELECT,
     });
 
-    await syncTeacherAssignmentsFromTrainer(user.id, email, data.role, data.branchId);
+    await syncTeacherAssignmentsFromTrainer(user.id, email, data.role, scope === 'global' ? null : data.branchId);
     return { user, initialPassword: data.password ? undefined : password };
   },
 
@@ -161,6 +176,7 @@ export const usersService = {
     email?: string;
     role?: string;
     branchId?: number | null;
+    scope?: string;
     status?: string;
   }) => {
     const existing = await prisma.user.findUnique({ where: { id }, include: { role: true } });
@@ -168,7 +184,7 @@ export const usersService = {
 
     const roleName = data.role ?? existing.role.name;
     const branchId = data.branchId !== undefined ? data.branchId : existing.branchId;
-    const role = await validateRoleAndBranch(roleName, branchId);
+    const { role, scope } = await validateRoleBranchAndScope(roleName, branchId, data.scope ?? existing.scope);
     const nextEmail = data.email !== undefined ? normalizeEmail(data.email) : existing.email;
 
     if (nextEmail !== existing.email) {
@@ -183,13 +199,14 @@ export const usersService = {
         ...(data.name !== undefined && { name: cleanText(data.name) }),
         ...(data.email !== undefined && { email: nextEmail }),
         ...(data.role !== undefined && { roleId: role.id }),
-        ...(data.branchId !== undefined && { branchId: data.branchId }),
+        scope,
+        branchId: scope === 'global' ? null : branchId,
         ...(data.status !== undefined && statusFlags(data.status)),
       },
       select: USER_SELECT,
     });
 
-    await syncTeacherAssignmentsFromTrainer(user.id, user.email, roleName, branchId);
+    await syncTeacherAssignmentsFromTrainer(user.id, user.email, roleName, scope === 'global' ? null : branchId);
     return user;
   },
 

@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { isSuperAdmin } from '../../common/utils/scope.util';
+import { hasGlobalScope } from '../../common/utils/scope.util';
 import { assertTeacherBatchAccess } from '../../common/utils/teacher-scope.util';
 
 const SCHEDULE_SELECT = {
@@ -28,7 +28,7 @@ function validateTimeSlot(startTime: string, endTime: string): void {
 }
 
 function assertBranchAccess(user: AuthPayload, branchId: number): void {
-  if (!isSuperAdmin(user.role) && branchId !== user.branchId) {
+  if (!hasGlobalScope(user) && branchId !== user.branchId) {
     console.warn(`[ScheduleService] Branch access denied — user branchId=${user.branchId}, resource branchId=${branchId}`);
     throw new Error('ACCESS_DENIED');
   }
@@ -137,3 +137,4 @@ export const scheduleService = {
     return { message: `Schedule id=${id} deleted successfully` };
   },
 };
+

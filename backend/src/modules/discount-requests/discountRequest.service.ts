@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { getBranchFilter, isSuperAdmin } from '../../common/utils/scope.util';
+import { getBranchFilter, hasGlobalScope } from '../../common/utils/scope.util';
 import { createBranchAlert } from '../alerts/alert.service';
 
 const VALID_DECISIONS = ['approved', 'rejected'] as const;
@@ -30,7 +30,7 @@ async function resolveRequestBranchId(
   if (enquiryId) {
     const enquiry = await prisma.enquiry.findUnique({ where: { id: enquiryId } });
     if (!enquiry) throw new Error('ENQUIRY_NOT_FOUND');
-    if (!isSuperAdmin(user.role) && enquiry.branchId !== user.branchId) {
+    if (!hasGlobalScope(user) && enquiry.branchId !== user.branchId) {
       console.warn(`[DiscountRequestService] Branch mismatch on enquiry id=${enquiryId}`);
       throw new Error('ACCESS_DENIED');
     }
@@ -40,7 +40,7 @@ async function resolveRequestBranchId(
   if (studentId) {
     const student = await prisma.student.findUnique({ where: { id: studentId } });
     if (!student) throw new Error('STUDENT_NOT_FOUND');
-    if (!isSuperAdmin(user.role) && student.branchId !== user.branchId) {
+    if (!hasGlobalScope(user) && student.branchId !== user.branchId) {
       console.warn(`[DiscountRequestService] Branch mismatch on student id=${studentId}`);
       throw new Error('ACCESS_DENIED');
     }
@@ -138,7 +138,7 @@ export const discountRequestService = {
     });
     if (!request) throw new Error('REQUEST_NOT_FOUND');
 
-    if (!isSuperAdmin(user.role) && request.branch.id !== user.branchId) {
+    if (!hasGlobalScope(user) && request.branch.id !== user.branchId) {
       console.warn(`[DiscountRequestService] Access denied on request id=${id}`);
       throw new Error('ACCESS_DENIED');
     }
@@ -186,3 +186,4 @@ export const discountRequestService = {
     return updated;
   },
 };
+

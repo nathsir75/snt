@@ -1,14 +1,14 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../../common/types';
 import { branchesService } from './branches.service';
-import { isSuperAdmin } from '../../common/utils/scope.util';
+import { hasGlobalScope } from '../../common/utils/scope.util';
 
 export const branchesController = {
   getMyBranch: async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const user = req.user!;
-      if (isSuperAdmin(user.role) && !user.branchId) {
-        res.json({ message: 'Super admin is not tied to a branch' });
+      if (hasGlobalScope(user) && !user.branchId) {
+        res.json({ message: 'Head Office / Global user is not tied to a branch' });
         return;
       }
       const branch = await branchesService.getBranchById(user.branchId as number);

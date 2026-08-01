@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { getBranchFilter, isSuperAdmin } from '../../common/utils/scope.util';
+import { getBranchFilter, hasGlobalScope } from '../../common/utils/scope.util';
 
 const VALID_ACTION_TYPES      = ['call', 'whatsapp', 'email', 'visit', 'note'] as const;
 const VALID_STATUS_AFTER      = ['contacted', 'follow_up', 'converted', 'lost'] as const;
@@ -20,7 +20,7 @@ const FOLLOWUP_SELECT = {
 };
 
 function assertBranchAccess(user: AuthPayload, branchId: number): void {
-  if (!isSuperAdmin(user.role) && branchId !== user.branchId) {
+  if (!hasGlobalScope(user) && branchId !== user.branchId) {
     console.warn(
       `[FollowUpService] Branch access denied — user branchId=${user.branchId}, resource branchId=${branchId}`,
     );
@@ -209,3 +209,4 @@ export const enquiryFollowUpService = {
     return { totalFollowUps, dueToday, overdue, actionTypeBreakdown };
   },
 };
+

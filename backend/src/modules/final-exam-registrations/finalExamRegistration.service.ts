@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { getBranchFilter, isSuperAdmin } from '../../common/utils/scope.util';
+import { getBranchFilter, hasGlobalScope } from '../../common/utils/scope.util';
 
 const VALID_STATUSES = ['registered', 'scheduled', 'completed', 'absent'] as const;
 
@@ -26,7 +26,7 @@ const REGISTRATION_SELECT = {
 };
 
 function assertBranchAccess(user: AuthPayload, branchId: number): void {
-  if (!isSuperAdmin(user.role) && branchId !== user.branchId) {
+  if (!hasGlobalScope(user) && branchId !== user.branchId) {
     console.warn(`[FinalExamRegService] Branch access denied — user branchId=${user.branchId}, resource branchId=${branchId}`);
     throw new Error('ACCESS_DENIED');
   }
@@ -39,14 +39,14 @@ export const finalExamRegistrationService = {
     filters: { status?: string; branchId?: number },
   ) => {
     // branch_admin cannot filter by arbitrary branchId
-    if (!isSuperAdmin(user.role) && filters.branchId && filters.branchId !== user.branchId) {
+    if (!hasGlobalScope(user) && filters.branchId && filters.branchId !== user.branchId) {
       throw new Error('ACCESS_DENIED');
     }
 
     const branchFilter = getBranchFilter(user);
     const where: Record<string, unknown> = { ...branchFilter };
     if (filters.status) where['status'] = filters.status;
-    if (isSuperAdmin(user.role) && filters.branchId) where['branchId'] = filters.branchId;
+    if (hasGlobalScope(user) && filters.branchId) where['branchId'] = filters.branchId;
 
     console.log(`[FinalExamRegService] Listing registrations — role=${user.role}, filters:`, filters);
 
@@ -130,3 +130,4 @@ export const finalExamRegistrationService = {
     };
   },
 };
+

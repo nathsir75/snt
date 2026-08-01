@@ -318,6 +318,7 @@ model User {
   password                       String
   roleId                         Int
   branchId                       Int?
+  scope                          String                   @default("branch")
   isActive                       Boolean                  @default(true)
   status                         String                   @default("active")
   archivedAt                     DateTime?
@@ -342,6 +343,7 @@ model User {
 
   @@index([status])
   @@index([branchId, status])
+  @@index([scope])
 }
 
 model Alert {

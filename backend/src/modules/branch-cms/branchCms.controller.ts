@@ -3,7 +3,7 @@ import { AuthRequest } from '../../common/types';
 import { branchCmsService } from './branchCms.service';
 
 const ERROR_MAP: Record<string, [number, string]> = {
-  BRANCH_ID_REQUIRED: [400, 'branchId query param required for super_admin'],
+  BRANCH_ID_REQUIRED: [400, 'branchId query param required for Head Office / Global users'],
   NO_BRANCH:          [403, 'User has no branch assigned'],
   ACCESS_DENIED:      [403, 'Access denied'],
 };

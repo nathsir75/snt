@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { getBranchFilter, isSuperAdmin } from '../../common/utils/scope.util';
+import { getBranchFilter, hasGlobalScope } from '../../common/utils/scope.util';
 import { createBranchAlert } from '../alerts/alert.service';
 
 const VALID_STATUSES = ['offered', 'joined', 'rejected'] as const;
@@ -73,13 +73,13 @@ export const placementService = {
   },
 
   list: async (user: AuthPayload, filters: { status?: string; branchId?: number }) => {
-    if (!isSuperAdmin(user.role) && filters.branchId && filters.branchId !== user.branchId) {
+    if (!hasGlobalScope(user) && filters.branchId && filters.branchId !== user.branchId) {
       throw new Error('ACCESS_DENIED');
     }
 
     const where: Record<string, unknown> = {};
 
-    if (!isSuperAdmin(user.role)) {
+    if (!hasGlobalScope(user)) {
       where['student'] = { branchId: user.branchId };
     } else if (filters.branchId) {
       where['student'] = { branchId: filters.branchId };
@@ -101,7 +101,7 @@ export const placementService = {
     });
     if (!placement) throw new Error('PLACEMENT_NOT_FOUND');
 
-    if (!isSuperAdmin(user.role) && placement.student.branchId !== user.branchId) {
+    if (!hasGlobalScope(user) && placement.student.branchId !== user.branchId) {
       throw new Error('ACCESS_DENIED');
     }
     return placement;
@@ -117,7 +117,7 @@ export const placementService = {
     const placement = await prisma.placement.findUnique({ where: { id }, select: PLACEMENT_SELECT });
     if (!placement) throw new Error('PLACEMENT_NOT_FOUND');
 
-    if (!isSuperAdmin(user.role) && placement.student.branchId !== user.branchId) {
+    if (!hasGlobalScope(user) && placement.student.branchId !== user.branchId) {
       throw new Error('ACCESS_DENIED');
     }
 
@@ -133,7 +133,7 @@ export const placementService = {
 
   getSummary: async (user: AuthPayload) => {
     const where: Record<string, unknown> = {};
-    if (!isSuperAdmin(user.role)) {
+    if (!hasGlobalScope(user)) {
       where['student'] = { branchId: user.branchId };
     }
 
@@ -193,3 +193,4 @@ export const placementService = {
     };
   },
 };
+

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../../common/types';
 import { studentService } from './student.service';
+import { hasGlobalScope } from '../../common/utils/scope.util';
 
 const ERROR_MAP: Record<string, [number, string]> = {
   ENQUIRY_NOT_FOUND:    [404, 'Enquiry not found'],
@@ -81,7 +82,7 @@ export const studentController = {
 
   getBranchSummary: async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const branchId = req.user!.branchId!;
+      const branchId = hasGlobalScope(req.user!) ? undefined : req.user!.branchId!;
       const summary = await studentService.getBranchSummary(branchId);
       res.json(summary);
     } catch (error: any) {

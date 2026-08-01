@@ -27,6 +27,7 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  scope: 'global' | 'branch';
   branchId: number | null;
   branch: Branch | null;
   isActive: boolean;

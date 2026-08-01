@@ -5,6 +5,10 @@ export function isSuperAdmin(role: Role | string): boolean {
   return role === ROLES.SUPER_ADMIN;
 }
 
+export function hasGlobalScope(user: AuthPayload): boolean {
+  return isSuperAdmin(user.role) || user.scope === 'global';
+}
+
 export function isBranchScoped(role: Role | string): boolean {
   return BRANCH_ROLES.includes(role as Role);
 }
@@ -14,8 +18,8 @@ export function hasRole(role: Role | string, ...allowed: Role[]): boolean {
 }
 
 export function getBranchFilter(user: AuthPayload): { branchId?: number } {
-  if (isSuperAdmin(user.role)) {
-    console.log('[Scope] super_admin bypass — no branch filter applied');
+  if (hasGlobalScope(user)) {
+    console.log(`[Scope] global bypass — role: ${user.role}, scope: ${user.scope ?? 'legacy'}`);
     return {};
   }
   console.log(`[Scope] Branch filter applied for role: ${user.role}, branchId: ${user.branchId}`);

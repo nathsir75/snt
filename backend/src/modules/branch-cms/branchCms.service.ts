@@ -1,6 +1,6 @@
 import prisma from '../../db/prisma';
 import { AuthPayload } from '../../common/types';
-import { isSuperAdmin } from '../../common/utils/scope.util';
+import { hasGlobalScope } from '../../common/utils/scope.util';
 import { Prisma } from '@prisma/client';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ export interface BranchCmsSettings {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function resolveBranchId(user: AuthPayload, queryBranchId?: number): number {
-  if (isSuperAdmin(user.role)) {
+  if (hasGlobalScope(user)) {
     if (!queryBranchId) throw new Error('BRANCH_ID_REQUIRED');
     return queryBranchId;
   }
