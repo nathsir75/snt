@@ -8,10 +8,10 @@
 #
 # Optional overrides:
 #   BRANCH=main PM2_APP=snt-api APP_USER=mahendra bash scripts/deploy-vps.sh
-#   ALLOW_MERGE=true bash scripts/deploy-vps.sh
+#   ALLOW_MERGE=false bash scripts/deploy-vps.sh
 #
-# The default Git mode is fast-forward only. If the VPS branch has local-only
-# commits or divergence, this script stops and prints safe next steps. It never
+# The default Git mode preserves local-only commits. If the VPS branch has
+# diverged from origin/main, this script creates a normal merge commit. It never
 # force-pushes, resets, rebases, or deletes Git history.
 
 set -Eeuo pipefail
@@ -31,9 +31,10 @@ FRONTEND_DIST="${FRONTEND_DIST:-$FRONTEND_DIR/dist/snt-frontend/browser}"
 PUBLIC_ROOT="${PUBLIC_ROOT:-/var/www/28479f79-f545-4a5b-90d3-ecdeea3a3ccb/public_html}"
 FRONTEND_BACKUP_ROOT="${FRONTEND_BACKUP_ROOT:-/home/mahendra/backups/snteducation/frontend}"
 
-# Set ALLOW_MERGE=true only when you intentionally want the VPS to create a
-# normal merge commit that preserves both local VPS commits and origin/main.
-ALLOW_MERGE="${ALLOW_MERGE:-false}"
+# Keep ALLOW_MERGE=true to preserve both local VPS commits and origin/main with
+# a normal merge commit when they diverge. Override with ALLOW_MERGE=false if
+# you want the script to stop instead of merging.
+ALLOW_MERGE="${ALLOW_MERGE:-true}"
 
 log() {
   printf '\n[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
