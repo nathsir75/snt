@@ -52,6 +52,23 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
 
         <!-- Case 1: profile loaded -->
         @case ('ready') {
+          <section class="programme-banner" aria-label="SNDTWU and Globetech programme">
+            <div class="programme-banner__logos">
+              <span class="programme-banner__logo-frame programme-banner__logo-frame--sndt">
+                <img src="/brand/sndtwu-logo.png" alt="SNDT Women's University" />
+              </span>
+              <span class="programme-banner__plus">+</span>
+              <span class="programme-banner__logo-frame">
+                <img src="/brand/globetech-logo.jpeg" alt="Globetech" />
+              </span>
+            </div>
+            <div class="programme-banner__copy">
+              <span class="programme-banner__eyebrow">{{ programmeEyebrow }}</span>
+              <h1>{{ programmeTitle }}</h1>
+              <p>{{ programmeStatement }}</p>
+            </div>
+          </section>
+
           <!-- Welcome banner -->
           <div class="welcome-card card">
             <div class="welcome-card__avatar">{{ initials() }}</div>
@@ -219,6 +236,35 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
       animation: spin .7s linear infinite;
     }
 
+    .programme-banner {
+      display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 16px;
+      padding: 16px; border: 1px solid rgba(37, 99, 235, .16); border-radius: var(--radius-lg);
+      background: linear-gradient(135deg, #ffffff 0%, #f8fbff 56%, #fdf2f8 100%);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, .06);
+    }
+    .programme-banner__logos { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .programme-banner__logo-frame {
+      width: 62px; height: 62px; border-radius: 12px; background: #fff;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+      border: 1px solid rgba(15, 23, 42, .1);
+    }
+    .programme-banner__logo-frame--sndt { width: 70px; }
+    .programme-banner__logo-frame img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+    .programme-banner__plus { color: #334155; font-size: 18px; font-weight: 800; }
+    .programme-banner__copy { min-width: 0; }
+    .programme-banner__eyebrow {
+      display: block; margin-bottom: 3px; color: #be185d;
+      font-size: var(--font-size-xs); font-weight: 800; text-transform: uppercase; letter-spacing: .4px;
+    }
+    .programme-banner__copy h1 {
+      margin: 0; color: #0f172a; font-size: clamp(20px, 4vw, 28px);
+      line-height: 1.15; font-weight: 900;
+    }
+    .programme-banner__copy p {
+      margin: 5px 0 0; color: #475569; font-size: var(--font-size-sm);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
     /* Welcome card */
     .welcome-card { display: flex; align-items: center; gap: 16px; padding: 20px; }
     .welcome-card__avatar {
@@ -275,6 +321,12 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
     .quick-link__label { font-size: var(--font-size-sm); font-weight: 500; }
 
     @media (max-width: 760px) {
+      .programme-banner { grid-template-columns: 1fr; gap: 12px; padding: 14px; }
+      .programme-banner__logos { justify-content: space-between; width: 100%; }
+      .programme-banner__logo-frame { width: 76px; height: 56px; border-radius: 10px; }
+      .programme-banner__logo-frame--sndt { width: 92px; }
+      .programme-banner__copy h1 { font-size: 22px; }
+      .programme-banner__copy p { white-space: normal; line-height: 1.35; }
       .learning-grid { grid-template-columns: 1fr; }
       .compact-list a { grid-template-columns: 82px 1fr; }
     }
@@ -285,6 +337,10 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
 export class StudentDashboardComponent implements OnInit {
   private readonly studentSvc = inject(StudentService);
   private readonly auth       = inject(AuthService);
+
+  readonly programmeEyebrow = 'Co-branded learning initiative';
+  readonly programmeTitle = 'SNDT Women’s University, Mumbai + Globetech Power Foundation';
+  readonly programmeStatement = 'A learning initiative by SNDT Women’s University, Mumbai, in collaboration with Globetech Power Foundation — expanding access to technology education and empowering learners from underserved communities.';
 
   readonly state    = signal<DashState>('loading');
   readonly profile  = signal<StudentProfile | null>(null);
