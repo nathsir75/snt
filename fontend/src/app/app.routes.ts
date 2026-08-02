@@ -167,6 +167,7 @@ export const APP_ROUTES: Routes = [
     children: [
       { path: 'dashboard',    loadComponent: () => import('./features/student/dashboard/student-dashboard.component').then((m) => m.StudentDashboardComponent) },
       { path: 'my-course',    loadComponent: () => import('./features/student/my-course/student-my-course.component').then((m) => m.StudentMyCourseComponent) },
+      { path: 'lectures/:id',  loadComponent: () => import('./features/student/lecture-player/student-lecture-player.component').then((m) => m.StudentLecturePlayerComponent) },
       { path: 'quizzes',      loadComponent: () => import('./features/student/quizzes/student-quizzes.component').then((m) => m.StudentQuizzesComponent) },
       { path: 'quiz-history', loadComponent: () => import('./features/student/quiz-history/student-quiz-history.component').then((m) => m.StudentQuizHistoryComponent) },
       { path: 'my-attendance',loadComponent: () => import('./features/student/my-attendance/student-attendance.component').then((m) => m.StudentAttendanceComponent) },

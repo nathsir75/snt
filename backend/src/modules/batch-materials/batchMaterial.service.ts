@@ -27,6 +27,8 @@ const MATERIAL_SELECT = {
 
 const VALID_TYPES = new Set(['pdf', 'ppt', 'document', 'video', 'image', 'link']);
 const VALID_CATEGORIES = new Set(['recorded_lecture', 'recommended_video', 'study_resource']);
+const VALID_PROGRESS_EVENTS = new Set(['start', 'checkpoint', 'complete']);
+const VALID_CLARITY_STATUS = new Set(['clear', 'need_revision', 'ask_teacher']);
 
 function cleanText(value: unknown): string {
   return String(value ?? '').trim();
@@ -61,6 +63,38 @@ function isYouTubeUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function getYouTubeVideoId(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    if (host === 'youtu.be') return url.pathname.split('/').filter(Boolean)[0] ?? null;
+    if (host === 'youtube.com' || host === 'm.youtube.com') {
+      if (url.pathname.startsWith('/watch')) return url.searchParams.get('v');
+      if (url.pathname.startsWith('/shorts/') || url.pathname.startsWith('/embed/')) return url.pathname.split('/').filter(Boolean)[1] ?? null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function youtubeEmbedUrl(value: string | null | undefined): string | null {
+  const id = getYouTubeVideoId(value);
+  return id ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&modestbranding=0&playsinline=1&enablejsapi=1` : null;
+}
+
+function isLectureMaterial(material: { materialType: string; externalUrl: string | null; contentCategory: string }): boolean {
+  return material.materialType === 'link'
+    && !!youtubeEmbedUrl(material.externalUrl)
+    && ['recorded_lecture', 'recommended_video'].includes(material.contentCategory);
+}
+
+function progressPercent(position: number, duration?: number | null): number {
+  if (!duration || duration <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((position / duration) * 1000) / 10));
 }
 
 async function assertStaffBatchAccess(user: AuthPayload, batchId: number) {
@@ -119,6 +153,20 @@ async function assertStudentBatchAccess(user: AuthPayload, batchId: number) {
   });
   if (!assignment) throw new Error('ACCESS_DENIED');
   return record;
+}
+
+async function assertStudentMaterialAccess(user: AuthPayload, materialId: number) {
+  const material = await prisma.batchMaterial.findUnique({
+    where: { id: materialId },
+    select: {
+      ...MATERIAL_SELECT,
+      createdByUserId: true,
+    },
+  });
+  if (!material || material.archivedAt || !material.isPublished) throw new Error('MATERIAL_NOT_FOUND');
+  await assertStudentBatchAccess(user, material.batchId);
+  if (!isLectureMaterial(material)) throw new Error('LECTURE_NOT_FOUND');
+  return material;
 }
 
 export const batchMaterialService = {
@@ -284,5 +332,125 @@ export const batchMaterialService = {
       data: { isPublished: false, archivedAt: new Date() },
       select: MATERIAL_SELECT,
     });
+  },
+
+  getStudentLecture: async (user: AuthPayload, id: number) => {
+    const material = await assertStudentMaterialAccess(user, id);
+    const record = await getStudentRecord(user);
+    if (!record) throw new Error('STUDENT_RECORD_NOT_FOUND');
+    const [previousLectures, feedback, latestProgress] = await Promise.all([
+      prisma.batchMaterial.findMany({
+        where: {
+          batchId: material.batchId,
+          isPublished: true,
+          archivedAt: null,
+          materialType: 'link',
+          contentCategory: 'recorded_lecture',
+        },
+        orderBy: [{ lectureDate: 'desc' }, { createdAt: 'desc' }],
+        select: MATERIAL_SELECT,
+      }),
+      prisma.lectureFeedback.findUnique({
+        where: { materialId_studentId: { materialId: id, studentId: record.studentId } },
+        select: { id: true, rating: true, clarityStatus: true, comment: true, updatedAt: true },
+      }),
+      prisma.lectureProgress.findFirst({
+        where: { materialId: id, studentId: record.studentId },
+        orderBy: { createdAt: 'desc' },
+        select: { eventType: true, positionSeconds: true, durationSeconds: true, percentComplete: true, createdAt: true },
+      }),
+    ]);
+    return {
+      material: { ...material, youtubeEmbedUrl: youtubeEmbedUrl(material.externalUrl), youtubeVideoId: getYouTubeVideoId(material.externalUrl) },
+      previousLectures: previousLectures
+        .filter((item) => isLectureMaterial(item))
+        .map((item) => ({ id: item.id, title: item.title, lectureDate: item.lectureDate, createdAt: item.createdAt, active: item.id === id })),
+      feedback,
+      latestProgress,
+    };
+  },
+
+  recordLectureProgress: async (user: AuthPayload, id: number, data: any) => {
+    const material = await assertStudentMaterialAccess(user, id);
+    const record = await getStudentRecord(user);
+    if (!record) throw new Error('STUDENT_RECORD_NOT_FOUND');
+    const eventType = cleanText(data.eventType);
+    if (!VALID_PROGRESS_EVENTS.has(eventType)) throw new Error('INVALID_PROGRESS_EVENT');
+    const positionSeconds = Math.max(0, Math.floor(Number(data.positionSeconds ?? 0)));
+    const durationSeconds = data.durationSeconds === undefined || data.durationSeconds === null ? null : Math.max(0, Math.floor(Number(data.durationSeconds)));
+    if (!Number.isFinite(positionSeconds) || (durationSeconds !== null && !Number.isFinite(durationSeconds))) throw new Error('INVALID_PROGRESS_EVENT');
+    return prisma.lectureProgress.create({
+      data: {
+        materialId: id,
+        studentId: record.studentId,
+        userId: user.userId,
+        batchId: material.batchId,
+        branchId: material.branchId,
+        eventType,
+        positionSeconds,
+        durationSeconds,
+        percentComplete: eventType === 'complete' ? 100 : progressPercent(positionSeconds, durationSeconds),
+      },
+      select: { id: true, eventType: true, positionSeconds: true, durationSeconds: true, percentComplete: true, createdAt: true },
+    });
+  },
+
+  submitLectureFeedback: async (user: AuthPayload, id: number, data: any) => {
+    const material = await assertStudentMaterialAccess(user, id);
+    const record = await getStudentRecord(user);
+    if (!record) throw new Error('STUDENT_RECORD_NOT_FOUND');
+    const rating = Number(data.rating);
+    const clarityStatus = cleanText(data.clarityStatus);
+    const comment = cleanText(data.comment).slice(0, 1000);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error('INVALID_FEEDBACK');
+    if (!VALID_CLARITY_STATUS.has(clarityStatus)) throw new Error('INVALID_FEEDBACK');
+    return prisma.lectureFeedback.upsert({
+      where: { materialId_studentId: { materialId: id, studentId: record.studentId } },
+      create: { materialId: id, studentId: record.studentId, userId: user.userId, batchId: material.batchId, branchId: material.branchId, rating, clarityStatus, comment: comment || null },
+      update: { rating, clarityStatus, comment: comment || null },
+      select: { id: true, rating: true, clarityStatus: true, comment: true, updatedAt: true },
+    });
+  },
+
+  getTeacherLectureFeedback: async (user: AuthPayload, id: number) => {
+    const material = await prisma.batchMaterial.findUnique({ where: { id }, select: MATERIAL_SELECT });
+    if (!material) throw new Error('MATERIAL_NOT_FOUND');
+    await assertStaffBatchAccess(user, material.batchId);
+    if (!isLectureMaterial(material)) throw new Error('LECTURE_NOT_FOUND');
+    const [feedback, progress] = await Promise.all([
+      prisma.lectureFeedback.findMany({
+        where: { materialId: id },
+        orderBy: { updatedAt: 'desc' },
+        include: { student: { select: { id: true, fullName: true, mobile: true, email: true } } },
+      }),
+      prisma.lectureProgress.groupBy({
+        by: ['studentId'],
+        where: { materialId: id },
+        _max: { percentComplete: true, createdAt: true },
+      }),
+    ]);
+    const ratings = feedback.map((item) => item.rating);
+    const clarityCounts = feedback.reduce((acc, item) => {
+      acc[item.clarityStatus] = (acc[item.clarityStatus] ?? 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    return {
+      material,
+      summary: {
+        feedbackCount: feedback.length,
+        averageRating: ratings.length ? Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10) / 10 : null,
+        clarityCounts,
+        studentsWithProgress: progress.length,
+      },
+      comments: feedback.map((item) => ({
+        id: item.id,
+        rating: item.rating,
+        clarityStatus: item.clarityStatus,
+        comment: item.comment,
+        updatedAt: item.updatedAt,
+        student: item.student,
+      })),
+      progress,
+    };
   },
 };

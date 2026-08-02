@@ -125,7 +125,7 @@ const TYPE_ICON: Record<string, string> = {
           } @else {
             <div class="material-list">
               @for (item of materials(); track item.id) {
-                <a class="material-link" [href]="materialUrl(item)" target="_blank" rel="noopener noreferrer">
+                <a class="material-link" [href]="materialLink(item)" [attr.target]="isEmbeddedLecture(item) ? null : '_blank'" rel="noopener noreferrer">
                   <span class="content-item__icon">{{ typeIcon(item.materialType) }}</span>
                   <span class="material-link__body">
                     <strong>{{ item.title }}</strong>
@@ -302,6 +302,14 @@ export class StudentMyCourseComponent implements OnInit {
     return item.fileUrl || item.externalUrl || item.mediaAsset?.fileUrl || '#';
   }
 
+  materialLink(item: StudentBatchMaterial): string {
+    return this.isEmbeddedLecture(item) ? `/student/lectures/${item.id}` : this.materialUrl(item);
+  }
+
+  isEmbeddedLecture(item: StudentBatchMaterial): boolean {
+    return item.materialType === 'link' && !!item.externalUrl && ['recorded_lecture', 'recommended_video'].includes(item.contentCategory) && this.isYouTubeUrl(item.externalUrl);
+  }
+
   categoryLabel(category: string): string {
     const labels: Record<string, string> = {
       recorded_lecture: 'Recorded lecture',
@@ -322,5 +330,14 @@ export class StudentMyCourseComponent implements OnInit {
       next: (items) => { this.materials.set(items); this.materialsLoading.set(false); },
       error: () => { this.materials.set([]); this.materialsLoading.set(false); },
     });
+  }
+
+  private isYouTubeUrl(value: string): boolean {
+    try {
+      const host = new URL(value).hostname.toLowerCase().replace(/^www\./, '');
+      return host === 'youtube.com' || host === 'youtu.be' || host === 'm.youtube.com';
+    } catch {
+      return false;
+    }
   }
 }

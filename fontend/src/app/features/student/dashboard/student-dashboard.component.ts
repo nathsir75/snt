@@ -108,7 +108,7 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
                 @if (materialsLoading()) {
                   <p class="text-muted text-sm">Loading teacher materials...</p>
                 } @else if (latestLecture()) {
-                  <a class="feature-link" [href]="materialUrl(latestLecture()!)" target="_blank" rel="noopener noreferrer">
+                  <a class="feature-link" [href]="lectureLink(latestLecture()!)">
                     <span class="feature-link__date">Recorded lecture — {{ materialDate(latestLecture()!) }}</span>
                     <strong>{{ latestLecture()!.title }}</strong>
                     @if (latestLecture()!.description) { <small>{{ latestLecture()!.description }}</small> }
@@ -128,7 +128,7 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
                 } @else {
                   <div class="compact-list">
                     @for (item of previousLectures() | slice:0:4; track item.id) {
-                      <a [href]="materialUrl(item)" target="_blank" rel="noopener noreferrer">
+                      <a [href]="lectureLink(item)">
                         <span>{{ materialDate(item) }}</span>
                         <strong>{{ item.title }}</strong>
                       </a>
@@ -147,7 +147,7 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
                 } @else {
                   <div class="compact-list">
                     @for (item of recommendedVideos() | slice:0:4; track item.id) {
-                      <a [href]="materialUrl(item)" target="_blank" rel="noopener noreferrer">
+                      <a [href]="lectureLink(item)">
                         <span>{{ materialTypeLabel(item) }}</span>
                         <strong>{{ item.title }}</strong>
                       </a>
@@ -341,6 +341,14 @@ export class StudentDashboardComponent implements OnInit {
     return item.externalUrl || item.fileUrl || item.mediaAsset?.fileUrl || '#';
   }
 
+  lectureLink(item: StudentBatchMaterial): string {
+    return this.isEmbeddedLecture(item) ? `/student/lectures/${item.id}` : this.materialUrl(item);
+  }
+
+  isEmbeddedLecture(item: StudentBatchMaterial): boolean {
+    return item.materialType === 'link' && !!item.externalUrl && ['recorded_lecture', 'recommended_video'].includes(item.contentCategory) && this.isYouTubeUrl(item.externalUrl);
+  }
+
   materialDate(item: StudentBatchMaterial): string {
     const value = item.lectureDate || item.createdAt;
     return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -363,5 +371,14 @@ export class StudentDashboardComponent implements OnInit {
     const left = new Date(a.lectureDate || a.createdAt).getTime();
     const right = new Date(b.lectureDate || b.createdAt).getTime();
     return right - left;
+  }
+
+  private isYouTubeUrl(value: string): boolean {
+    try {
+      const host = new URL(value).hostname.toLowerCase().replace(/^www\./, '');
+      return host === 'youtube.com' || host === 'youtu.be' || host === 'm.youtube.com';
+    } catch {
+      return false;
+    }
   }
 }

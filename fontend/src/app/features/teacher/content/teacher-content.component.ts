@@ -1,6 +1,7 @@
 import { Component, inject, signal, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { TeacherService, TeacherBatch, CourseContent, Session, BatchMaterial } from '../teacher.service';
+import { SlicePipe } from '@angular/common';
+import { TeacherService, TeacherBatch, CourseContent, Session, BatchMaterial, LectureFeedbackReport } from '../teacher.service';
 import { MediaService } from '../../media-library/media.service';
 import { UploadCategory } from '../../media-library/media.models';
 
@@ -10,7 +11,7 @@ type ContentCategory = 'recorded_lecture' | 'recommended_video' | 'study_resourc
 @Component({
   selector: 'snt-teacher-content',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, SlicePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page-header">
@@ -133,6 +134,9 @@ type ContentCategory = 'recorded_lecture' | 'recommended_video' | 'study_resourc
               <span class="material-item__status" [class.material-item__status--off]="!item.isPublished">{{ item.isPublished ? 'Published' : 'Unpublished' }}</span>
               <div class="material-item__actions">
                 <button class="btn btn-secondary btn-xs" type="button" (click)="startEdit(item)">Edit</button>
+                @if (isLectureMaterial(item)) {
+                  <button class="btn btn-secondary btn-xs" type="button" (click)="loadLectureFeedback(item)">Feedback</button>
+                }
                 <button class="btn btn-secondary btn-xs" type="button" (click)="togglePublished(item)">
                   {{ item.isPublished ? 'Unpublish' : 'Publish' }}
                 </button>
@@ -140,6 +144,30 @@ type ContentCategory = 'recorded_lecture' | 'recommended_video' | 'study_resourc
               </div>
             </div>
           }
+        </div>
+      }
+      @if (feedbackReport(); as report) {
+        <div class="feedback-panel">
+          <div class="feedback-panel__head">
+            <div><strong>{{ report.material.title }}</strong><small>{{ report.summary.feedbackCount }} feedback · {{ report.summary.studentsWithProgress }} students with progress</small></div>
+            <button class="btn btn-ghost btn-xs" type="button" (click)="feedbackReport.set(null)">Close</button>
+          </div>
+          <div class="feedback-metrics">
+            <span><strong>{{ report.summary.averageRating || '-' }}</strong>Avg rating</span>
+            <span><strong>{{ report.summary.clarityCounts['clear'] || 0 }}</strong>Clear</span>
+            <span><strong>{{ report.summary.clarityCounts['need_revision'] || 0 }}</strong>Need revision</span>
+            <span><strong>{{ report.summary.clarityCounts['ask_teacher'] || 0 }}</strong>Ask teacher</span>
+          </div>
+          <div class="feedback-comments">
+            @for (comment of report.comments; track comment.id) {
+              <div class="feedback-comment">
+                <div><strong>{{ comment.student.fullName }}</strong><small>{{ comment.updatedAt | slice:0:16 }} · {{ comment.rating }}/5 · {{ feedbackStatusLabel(comment.clarityStatus) }}</small></div>
+                @if (comment.comment) { <p>{{ comment.comment }}</p> }
+              </div>
+            } @empty {
+              <p class="text-muted text-sm">No student feedback submitted yet.</p>
+            }
+          </div>
         </div>
       }
     </section>
@@ -255,6 +283,16 @@ type ContentCategory = 'recorded_lecture' | 'recommended_video' | 'study_resourc
     .material-item__status { font-size: var(--font-size-xs); color: var(--color-success); }
     .material-item__status--off { color: var(--color-text-muted); }
     .material-item__actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .feedback-panel { margin-top: 14px; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 12px; display: grid; gap: 12px; background: var(--color-bg); }
+    .feedback-panel__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+    .feedback-panel__head small { display: block; color: var(--color-text-muted); margin-top: 3px; }
+    .feedback-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+    .feedback-metrics span { display: grid; gap: 2px; padding: 10px; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-muted); font-size: var(--font-size-xs); }
+    .feedback-metrics strong { color: var(--layout-accent, #0d9488); font-size: var(--font-size-lg); }
+    .feedback-comments { display: grid; gap: 8px; }
+    .feedback-comment { border-top: 1px solid var(--color-border); padding-top: 8px; }
+    .feedback-comment small { display: block; color: var(--color-text-muted); margin-top: 2px; }
+    .feedback-comment p { margin: 6px 0 0; color: var(--color-text); }
     .confirm-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .36); z-index: 300; display: grid; place-items: center; padding: 20px; }
     .confirm-box { width: min(420px, 100%); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 18px; }
     .confirm-box h3 { margin: 0 0 8px; font-size: var(--font-size-lg); }
@@ -317,6 +355,7 @@ export class TeacherContentComponent implements OnInit {
   readonly materialMode    = signal<MaterialMode>('upload');
   readonly materials       = signal<BatchMaterial[]>([]);
   readonly materialsLoading = signal(false);
+  readonly feedbackReport  = signal<LectureFeedbackReport | null>(null);
   readonly savingMaterial  = signal(false);
   readonly materialError   = signal<string | null>(null);
   readonly editingMaterialId = signal<number | null>(null);
@@ -484,6 +523,15 @@ export class TeacherContentComponent implements OnInit {
     return item.fileUrl || item.externalUrl || item.mediaAsset?.fileUrl || '#';
   }
 
+  isLectureMaterial(item: BatchMaterial): boolean {
+    return item.materialType === 'link' && !!item.externalUrl && ['recorded_lecture', 'recommended_video'].includes(item.contentCategory) && this.isYouTubeUrl(item.externalUrl);
+  }
+
+  feedbackStatusLabel(status: string): string {
+    const labels: Record<string, string> = { clear: 'Clear', need_revision: 'Need revision', ask_teacher: 'Ask teacher' };
+    return labels[status] ?? status;
+  }
+
   startEdit(item: BatchMaterial): void {
     this.editingMaterialId.set(item.id);
     this.materialError.set(null);
@@ -514,6 +562,14 @@ export class TeacherContentComponent implements OnInit {
 
   requestArchive(item: BatchMaterial): void {
     this.archiveTarget.set(item);
+  }
+
+  loadLectureFeedback(item: BatchMaterial): void {
+    this.materialError.set(null);
+    this.teacherSvc.getLectureFeedback(item.id).subscribe({
+      next: (report) => this.feedbackReport.set(report),
+      error: (err) => this.materialError.set(err.error?.error ?? 'Could not load lecture feedback.'),
+    });
   }
 
   archiveMaterial(): void {

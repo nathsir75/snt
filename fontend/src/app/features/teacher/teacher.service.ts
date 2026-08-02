@@ -77,6 +77,24 @@ export interface BatchMaterial {
   batch: { id: number; name: string; branch: { id: number; name: string }; course: { id: number; name: string; code: string } };
 }
 
+export interface LectureFeedbackReport {
+  material: BatchMaterial;
+  summary: {
+    feedbackCount: number;
+    averageRating: number | null;
+    clarityCounts: Record<string, number>;
+    studentsWithProgress: number;
+  };
+  comments: {
+    id: number;
+    rating: number;
+    clarityStatus: string;
+    comment: string | null;
+    updatedAt: string;
+    student: { id: number; fullName: string; mobile: string | null; email: string | null };
+  }[];
+}
+
 export interface DailyQuizSummary {
   id: number;
   batchId: number;
@@ -208,6 +226,10 @@ export class TeacherService {
 
   archiveMaterial(id: number): Observable<BatchMaterial> {
     return this.api.delete<BatchMaterial>(`/batch-materials/${id}`);
+  }
+
+  getLectureFeedback(id: number): Observable<LectureFeedbackReport> {
+    return this.api.get<LectureFeedbackReport>(`/batch-materials/${id}/lecture/feedback`);
   }
 
   getDailyQuizzes(): Observable<DailyQuizSummary[]> {

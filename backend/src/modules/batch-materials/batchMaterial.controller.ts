@@ -8,7 +8,10 @@ const ERROR_MAP: Record<string, [number, string]> = {
   INVALID_INPUT:             [400, 'Please provide a valid title, type and material details'],
   INVALID_CONTENT_CATEGORY:  [400, 'Please choose a valid content category'],
   INVALID_LECTURE_DATE:      [400, 'Please provide a valid lecture date'],
+  INVALID_FEEDBACK:          [400, 'Please provide a 1-5 rating and valid feedback status'],
+  INVALID_PROGRESS_EVENT:    [400, 'Please provide a valid lecture progress event'],
   INVALID_YOUTUBE_URL:       [400, 'Please provide a valid YouTube URL'],
+  LECTURE_NOT_FOUND:         [404, 'Lecture not found'],
   LECTURE_DATE_REQUIRED:     [400, 'Lecture date is required for recorded lectures'],
   MATERIAL_NOT_FOUND:        [404, 'Material not found'],
   MATERIAL_TARGET_REQUIRED:  [400, 'Upload a file or provide a material link'],
@@ -101,6 +104,38 @@ export const batchMaterialController = {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) { res.status(400).json({ error: 'Invalid material id' }); return; }
       res.json(await batchMaterialService.archive(req.user!, id));
+    } catch (err) { handleError(res, err); }
+  },
+
+  getStudentLecture: async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) { res.status(400).json({ error: 'Invalid material id' }); return; }
+      res.json(await batchMaterialService.getStudentLecture(req.user!, id));
+    } catch (err) { handleError(res, err); }
+  },
+
+  recordProgress: async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) { res.status(400).json({ error: 'Invalid material id' }); return; }
+      res.status(201).json(await batchMaterialService.recordLectureProgress(req.user!, id, req.body ?? {}));
+    } catch (err) { handleError(res, err); }
+  },
+
+  submitFeedback: async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) { res.status(400).json({ error: 'Invalid material id' }); return; }
+      res.json(await batchMaterialService.submitLectureFeedback(req.user!, id, req.body ?? {}));
+    } catch (err) { handleError(res, err); }
+  },
+
+  teacherFeedback: async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) { res.status(400).json({ error: 'Invalid material id' }); return; }
+      res.json(await batchMaterialService.getTeacherLectureFeedback(req.user!, id));
     } catch (err) { handleError(res, err); }
   },
 };

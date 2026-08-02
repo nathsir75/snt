@@ -51,6 +51,14 @@ export interface StudentBatchMaterial {
   createdAt: string;
   mediaAsset: { id: number; title: string; mediaType: string; fileUrl: string; mimeType: string | null; fileSizeKb: number | null } | null;
   createdBy: { id: number; name: string };
+  batch: { id: number; name: string; branch: { id: number; name: string }; course: { id: number; name: string; code: string } };
+}
+
+export interface StudentLecturePayload {
+  material: StudentBatchMaterial & { youtubeEmbedUrl: string; youtubeVideoId: string };
+  previousLectures: { id: number; title: string; lectureDate: string | null; createdAt: string; active: boolean }[];
+  feedback: { id: number; rating: number; clarityStatus: string; comment: string | null; updatedAt: string } | null;
+  latestProgress: { eventType: string; positionSeconds: number; durationSeconds: number | null; percentComplete: number; createdAt: string } | null;
 }
 
 export interface StudentDailyQuiz {
@@ -255,6 +263,15 @@ export class StudentService {
   }
   getBatchMaterials(batchId: number): Observable<StudentBatchMaterial[]> {
     return this.api.get<StudentBatchMaterial[]>(`/batch-materials/batch/${batchId}`);
+  }
+  getLecture(materialId: number): Observable<StudentLecturePayload> {
+    return this.api.get<StudentLecturePayload>(`/batch-materials/${materialId}/lecture`);
+  }
+  recordLectureProgress(materialId: number, data: { eventType: 'start' | 'checkpoint' | 'complete'; positionSeconds: number; durationSeconds?: number | null }): Observable<any> {
+    return this.api.post(`/batch-materials/${materialId}/lecture/progress`, data);
+  }
+  submitLectureFeedback(materialId: number, data: { rating: number; clarityStatus: string; comment?: string }): Observable<any> {
+    return this.api.patch(`/batch-materials/${materialId}/lecture/feedback`, data);
   }
   getDailyQuizzes(): Observable<StudentDailyQuiz[]> {
     return this.api.get<StudentDailyQuiz[]>('/daily-quizzes/student');

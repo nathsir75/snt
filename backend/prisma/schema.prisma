@@ -56,6 +56,8 @@ model Branch {
   batchMaterials          BatchMaterial[]
   dailyQuizzes            DailyQuiz[]
   dailyQuizAttempts       DailyQuizAttempt[]
+  lectureProgress         LectureProgress[]
+  lectureFeedback         LectureFeedback[]
 }
 
 model Enquiry {
@@ -98,6 +100,8 @@ model Student {
   enquiry                 Enquiry?                 @relation(fields: [enquiryId], references: [id])
   user                    User?                    @relation(fields: [userId], references: [id])
   dailyQuizAttempts       DailyQuizAttempt[]
+  lectureProgress         LectureProgress[]
+  lectureFeedback         LectureFeedback[]
   feePayments             FeePayment[]
   discountRequests        DiscountRequest[]
   batchStudents           BatchStudent[]
@@ -213,6 +217,8 @@ model Batch {
   teacherAssignments     TeacherBatchAssignment[]
   materials              BatchMaterial[]
   dailyQuizzes           DailyQuiz[]
+  lectureProgress        LectureProgress[]
+  lectureFeedback        LectureFeedback[]
 }
 
 model BatchStudent {
@@ -346,6 +352,8 @@ model User {
   mediaAssetsCreated             MediaAsset[]
   batchMaterialsCreated          BatchMaterial[]
   dailyQuizzesCreated            DailyQuiz[]
+  lectureProgressEvents          LectureProgress[]
+  lectureFeedbackSubmitted       LectureFeedback[]
   teacherBatchAssignments        TeacherBatchAssignment[]
   studentProfile                 Student?
 
@@ -650,12 +658,61 @@ model BatchMaterial {
   branch          Branch      @relation(fields: [branchId], references: [id])
   mediaAsset      MediaAsset? @relation(fields: [mediaAssetId], references: [id])
   createdBy       User        @relation(fields: [createdByUserId], references: [id])
+  lectureProgress LectureProgress[]
+  lectureFeedback LectureFeedback[]
 
   @@index([batchId, isPublished])
   @@index([contentCategory, lectureDate])
   @@index([archivedAt])
   @@index([branchId])
   @@index([createdByUserId])
+}
+
+model LectureProgress {
+  id              Int           @id @default(autoincrement())
+  materialId      Int
+  studentId       Int
+  userId          Int
+  batchId         Int
+  branchId        Int
+  eventType       String
+  positionSeconds Int           @default(0)
+  durationSeconds Int?
+  percentComplete Float         @default(0)
+  createdAt       DateTime      @default(now())
+  material        BatchMaterial @relation(fields: [materialId], references: [id])
+  student         Student       @relation(fields: [studentId], references: [id])
+  user            User          @relation(fields: [userId], references: [id])
+  batch           Batch         @relation(fields: [batchId], references: [id])
+  branch          Branch        @relation(fields: [branchId], references: [id])
+
+  @@index([materialId, studentId, createdAt])
+  @@index([studentId, createdAt])
+  @@index([batchId, materialId])
+}
+
+model LectureFeedback {
+  id              Int           @id @default(autoincrement())
+  materialId      Int
+  studentId       Int
+  userId          Int
+  batchId         Int
+  branchId        Int
+  rating          Int
+  clarityStatus   String
+  comment         String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  material        BatchMaterial @relation(fields: [materialId], references: [id])
+  student         Student       @relation(fields: [studentId], references: [id])
+  user            User          @relation(fields: [userId], references: [id])
+  batch           Batch         @relation(fields: [batchId], references: [id])
+  branch          Branch        @relation(fields: [branchId], references: [id])
+
+  @@unique([materialId, studentId])
+  @@index([materialId, createdAt])
+  @@index([batchId, materialId])
+  @@index([clarityStatus])
 }
 
 model DailyQuiz {
