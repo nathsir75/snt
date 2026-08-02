@@ -87,9 +87,7 @@ function youtubeEmbedUrl(value: string | null | undefined): string | null {
 }
 
 function isLectureMaterial(material: { materialType: string; externalUrl: string | null; contentCategory: string }): boolean {
-  return material.materialType === 'link'
-    && !!youtubeEmbedUrl(material.externalUrl)
-    && ['recorded_lecture', 'recommended_video'].includes(material.contentCategory);
+  return material.materialType === 'link' && !!youtubeEmbedUrl(material.externalUrl);
 }
 
 function progressPercent(position: number, duration?: number | null): number {

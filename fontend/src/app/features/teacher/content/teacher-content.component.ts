@@ -524,7 +524,7 @@ export class TeacherContentComponent implements OnInit {
   }
 
   isLectureMaterial(item: BatchMaterial): boolean {
-    return item.materialType === 'link' && !!item.externalUrl && ['recorded_lecture', 'recommended_video'].includes(item.contentCategory) && this.isYouTubeUrl(item.externalUrl);
+    return item.materialType === 'link' && !!item.externalUrl && this.isYouTubeUrl(item.externalUrl);
   }
 
   feedbackStatusLabel(status: string): string {

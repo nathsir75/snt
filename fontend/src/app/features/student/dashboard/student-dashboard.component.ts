@@ -166,7 +166,7 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
                 } @else {
                   <div class="compact-list">
                     @for (item of studyResources() | slice:0:5; track item.id) {
-                      <a [href]="materialUrl(item)" target="_blank" rel="noopener noreferrer">
+                      <a [href]="lectureLink(item)" [attr.target]="isEmbeddedLecture(item) ? null : '_blank'" rel="noopener noreferrer">
                         <span>{{ materialTypeLabel(item) }}</span>
                         <strong>{{ item.title }}</strong>
                       </a>
@@ -346,7 +346,7 @@ export class StudentDashboardComponent implements OnInit {
   }
 
   isEmbeddedLecture(item: StudentBatchMaterial): boolean {
-    return item.materialType === 'link' && !!item.externalUrl && ['recorded_lecture', 'recommended_video'].includes(item.contentCategory) && this.isYouTubeUrl(item.externalUrl);
+    return item.materialType === 'link' && !!item.externalUrl && this.isYouTubeUrl(item.externalUrl);
   }
 
   materialDate(item: StudentBatchMaterial): string {

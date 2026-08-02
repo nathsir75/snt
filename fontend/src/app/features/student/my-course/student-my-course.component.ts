@@ -307,7 +307,7 @@ export class StudentMyCourseComponent implements OnInit {
   }
 
   isEmbeddedLecture(item: StudentBatchMaterial): boolean {
-    return item.materialType === 'link' && !!item.externalUrl && ['recorded_lecture', 'recommended_video'].includes(item.contentCategory) && this.isYouTubeUrl(item.externalUrl);
+    return item.materialType === 'link' && !!item.externalUrl && this.isYouTubeUrl(item.externalUrl);
   }
 
   categoryLabel(category: string): string {
