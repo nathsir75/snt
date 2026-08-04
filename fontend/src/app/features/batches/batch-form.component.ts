@@ -81,6 +81,13 @@ interface CourseOption { id: number; name: string; code: string; }
           <input id="capacity" type="number" formControlName="capacity" placeholder="Leave blank for unlimited" min="1" />
         </div>
 
+        <div class="form-group form-group-inline">
+          <label class="toggle-label">
+            <input type="checkbox" formControlName="isCentralProgramme" />
+            <span>Head Office central programme</span>
+          </label>
+        </div>
+
         @if (batch) {
           <div class="form-group form-group-inline">
             <label class="toggle-label">
@@ -142,6 +149,7 @@ export class BatchFormComponent implements OnChanges, OnInit {
     schedule:  [''],
     capacity:  [null as number | null],
     isActive:  [true],
+    isCentralProgramme: [false],
   });
 
   get f() { return this.form.controls; }
@@ -161,11 +169,12 @@ export class BatchFormComponent implements OnChanges, OnInit {
         capacity:  this.batch.capacity,
         endDate:   this.batch.endDate ? this.batch.endDate.substring(0, 10) : '',
         isActive:  this.batch.isActive,
+        isCentralProgramme: this.batch.isCentralProgramme,
         startDate: this.batch.startDate.substring(0, 10),
       });
     }
     if (changes['open'] && this.open && !this.batch) {
-      this.form.reset({ isActive: true, courseId: 0 });
+      this.form.reset({ isActive: true, isCentralProgramme: false, courseId: 0 });
       this.serverError.set(null);
     }
   }
@@ -185,6 +194,7 @@ export class BatchFormComponent implements OnChanges, OnInit {
           capacity:  v.capacity ?? undefined,
           endDate:   v.endDate || undefined,
           isActive:  v.isActive,
+          isCentralProgramme: v.isCentralProgramme,
         })
       : (() => {
           const branchId = Number(this.auth.branchId());
@@ -201,6 +211,7 @@ export class BatchFormComponent implements OnChanges, OnInit {
             endDate:   v.endDate || undefined,
             schedule:  v.schedule || undefined,
             capacity:  v.capacity ?? undefined,
+            isCentralProgramme: v.isCentralProgramme,
           };
           console.log('REQUEST PAYLOAD (batch create):', payload);
           return this.svc.create(payload);

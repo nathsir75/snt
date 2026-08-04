@@ -57,7 +57,7 @@ interface TrainerLinkCandidate extends TrainerLink {
 }
 
 type LoadState = 'loading' | 'error' | 'ready';
-type SecretNotice = { title: string; password: string; email: string } | null;
+type SecretNotice = { title: string; password: string; email: string; note?: string } | null;
 
 const ROLES = [
   { value: 'super_admin', label: 'Super Admin' },
@@ -295,6 +295,9 @@ const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor'
           <strong>{{ notice.title }}</strong>
           <p>{{ notice.email }}</p>
           <code>{{ notice.password }}</code>
+          @if (notice.note) {
+            <small>{{ notice.note }}</small>
+          }
         </div>
         <button class="btn btn-secondary btn-sm" (click)="copySecret(notice.password)">Copy</button>
         <button class="btn btn-ghost btn-sm" (click)="secretNotice.set(null)">Close</button>
@@ -340,6 +343,7 @@ const GLOBAL_ALLOWED_ROLES = new Set(['super_admin', 'branch_admin', 'counselor'
     .secret-panel { position: fixed; right: 24px; bottom: 24px; z-index: 250; width: min(460px, calc(100vw - 48px)); display: flex; align-items: center; gap: 10px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 14px; }
     .secret-panel p { color: var(--color-text-muted); font-size: var(--font-size-xs); margin: 2px 0 8px; }
     .secret-panel code { display: inline-block; padding: 4px 8px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+    .secret-panel small { display: block; margin-top: 8px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
     @media (max-width: 720px) { .form-field--wide { grid-column: auto; } .row-actions { flex-wrap: wrap; justify-content: flex-start; } .secret-panel { left: 12px; right: 12px; bottom: 12px; width: auto; flex-wrap: wrap; } }
   `],
 })
@@ -499,7 +503,12 @@ export class UsersComponent implements OnInit {
           this.upsert(result.user);
           this.loadTrainerCandidates();
           if (result.initialPassword) {
-            this.secretNotice.set({ title: 'Initial credential issued', email: result.user.email, password: result.initialPassword });
+            this.secretNotice.set({
+              title: 'Initial one-time credential issued',
+              email: result.user.email,
+              password: result.initialPassword,
+              note: 'User must change this password on first login.',
+            });
           }
           this.bannerType.set('info');
           this.banner.set('User saved.');
@@ -521,7 +530,12 @@ export class UsersComponent implements OnInit {
       .subscribe({
         next: (result) => {
           this.upsert(result.user);
-          this.secretNotice.set({ title: 'Temporary credential issued', email: result.user.email, password: result.temporaryPassword });
+          this.secretNotice.set({
+            title: 'Temporary one-time credential issued',
+            email: result.user.email,
+            password: result.temporaryPassword,
+            note: 'User must change this password on next login.',
+          });
         },
         error: (error) => this.showError(error?.error?.message || 'Failed to reset password.'),
       });

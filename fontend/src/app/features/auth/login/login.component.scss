@@ -102,6 +102,19 @@
   margin-top: 8px;
 }
 
+.forgot-link {
+  align-self: center;
+  margin-top: 14px;
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.forgot-link:hover {
+  text-decoration: underline;
+}
+
 .alert-error {
   background: #fee2e2;
   color: #991b1b;

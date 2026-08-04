@@ -10,7 +10,12 @@ export const authGuard: CanActivateFn = (
   const auth   = inject(AuthService);
   const router = inject(Router);
 
-  if (auth.isLoggedIn()) return true;
+  if (auth.isLoggedIn()) {
+    if (auth.mustChangePassword() && !state.url.startsWith('/auth/change-password')) {
+      return router.createUrlTree(['/auth/change-password']);
+    }
+    return true;
+  }
 
   // Preserve the attempted URL so login can redirect back after success
   return router.createUrlTree(['/auth/login'], {
@@ -28,6 +33,7 @@ export const guestGuard: CanActivateFn = () => {
   const role   = auth.role();
 
   if (!role) return true;
+  if (auth.mustChangePassword()) return router.createUrlTree(['/auth/change-password']);
 
   return router.createUrlTree([homeRouteForRole(role)]);
 };

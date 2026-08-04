@@ -12,6 +12,7 @@ const BATCH_SELECT = {
   startDate: true,
   endDate: true,
   isActive: true,
+  isCentralProgramme: true,
   createdAt: true,
   updatedAt: true,
   course: { select: { id: true, name: true, code: true } },
@@ -37,6 +38,7 @@ export const batchService = {
       endDate?: string;
       schedule?: string;
       capacity?: number;
+      isCentralProgramme?: boolean;
     },
   ) => {
     assertBranchAccess(user, data.branchId);
@@ -57,6 +59,7 @@ export const batchService = {
         endDate:   data.endDate ? new Date(data.endDate) : null,
         schedule:  data.schedule ?? null,
         capacity:  data.capacity ?? null,
+        isCentralProgramme: !!data.isCentralProgramme,
       },
       select: BATCH_SELECT,
     });
@@ -137,6 +140,7 @@ export const batchService = {
       capacity?: number;
       endDate?: string;
       isActive?: boolean;
+      isCentralProgramme?: boolean;
     },
   ) => {
     const existing = await prisma.batch.findUnique({ where: { id } });
@@ -151,6 +155,7 @@ export const batchService = {
         ...(data.capacity !== undefined && { capacity: data.capacity }),
         ...(data.endDate  !== undefined && { endDate: new Date(data.endDate) }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),
+        ...(data.isCentralProgramme !== undefined && { isCentralProgramme: data.isCentralProgramme }),
       },
       select: BATCH_SELECT,
     });

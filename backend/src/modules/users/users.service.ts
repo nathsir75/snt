@@ -10,6 +10,7 @@ const USER_SELECT = {
   name: true,
   email: true,
   scope: true,
+  mustChangePassword: true,
   isActive: true,
   status: true,
   archivedAt: true,
@@ -264,6 +265,7 @@ export const usersService = {
         roleId: role.id,
         scope,
         branchId: scope === 'global' ? null : data.branchId ?? null,
+        mustChangePassword: data.password ? false : true,
         ...statusFlags('active'),
       },
       select: USER_SELECT,
@@ -329,7 +331,7 @@ export const usersService = {
 
     const user = await prisma.user.update({
       where: { id },
-      data: { password: await bcrypt.hash(nextPassword, 10) },
+      data: { password: await bcrypt.hash(nextPassword, 10), mustChangePassword: true, passwordChangedAt: new Date() },
       select: USER_SELECT,
     });
 

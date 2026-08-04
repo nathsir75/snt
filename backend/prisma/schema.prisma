@@ -206,6 +206,7 @@ model Batch {
   schedule               String?
   capacity               Int?
   isActive               Boolean                  @default(true)
+  isCentralProgramme     Boolean                  @default(false)
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
   course                 Course                   @relation(fields: [courseId], references: [id])
@@ -331,6 +332,8 @@ model User {
   roleId                         Int
   branchId                       Int?
   scope                          String                   @default("branch")
+  mustChangePassword             Boolean                  @default(false)
+  passwordChangedAt              DateTime?
   isActive                       Boolean                  @default(true)
   status                         String                   @default("active")
   archivedAt                     DateTime?
@@ -355,11 +358,30 @@ model User {
   lectureProgressEvents          LectureProgress[]
   lectureFeedbackSubmitted       LectureFeedback[]
   teacherBatchAssignments        TeacherBatchAssignment[]
+  passwordResetTokens            PasswordResetToken[]
   studentProfile                 Student?
 
   @@index([status])
   @@index([branchId, status])
   @@index([scope])
+  @@index([mustChangePassword])
+}
+
+model PasswordResetToken {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  requestedIp String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([usedAt, revokedAt])
 }
 
 model Alert {

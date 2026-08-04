@@ -18,6 +18,7 @@ export interface TokenPayload {
   role: string;
   scope: 'global' | 'branch';
   branchId: number | null;
+  mustChangePassword?: boolean;
   iat: number;
   exp: number;
 }

@@ -31,6 +31,7 @@ export interface User {
   branchId: number | null;
   branch: Branch | null;
   isActive: boolean;
+  mustChangePassword?: boolean;
 }
 
 /**

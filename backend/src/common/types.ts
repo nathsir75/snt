@@ -6,6 +6,8 @@ export interface AuthPayload {
   role: Role;
   branchId: number | null;
   scope?: 'global' | 'branch';
+  mustChangePassword?: boolean;
+  iat?: number;
 }
 
 export interface AuthRequest extends Request {

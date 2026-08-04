@@ -11,6 +11,7 @@ export const HO_NAV: NavItem[] = [
 
   { label: 'Enquiries',              icon: '📋', route: '/ho/enquiries',              group: 'CRM',          badgeKey: 'newEnquiries',     badgeColor: 'info' },
   { label: 'Students',               icon: '🎓', route: '/ho/students',               group: 'CRM' },
+  { label: 'Student Import',         icon: '📥', route: '/ho/student-import',         group: 'CRM' },
 
   { label: 'Courses',                icon: '📚', route: '/ho/courses',                group: 'Academic' },
   { label: 'LMS',                    icon: '🖥️', route: '/ho/lms',                    group: 'Academic' },

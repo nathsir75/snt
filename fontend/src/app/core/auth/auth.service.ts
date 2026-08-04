@@ -23,6 +23,7 @@ export class AuthService {
   readonly isLoggedIn    = computed(() => !!this._currentUser());
   readonly role          = computed(() => this._currentUser()?.role ?? null);
   readonly branchId      = computed(() => this._currentUser()?.branchId ?? null);
+  readonly mustChangePassword = computed(() => !!this._currentUser()?.mustChangePassword);
 
   // Granular role checks
   readonly isSuperAdmin  = computed(() => this.role() === ROLES.SUPER_ADMIN);
@@ -54,6 +55,10 @@ export class AuthService {
   redirectAfterLogin(): void {
     const role = this.role();
     if (!role) { this.router.navigate(['/auth/login']); return; }
+    if (this.mustChangePassword()) {
+      this.router.navigate(['/auth/change-password']);
+      return;
+    }
     this.authRedirect.redirectAfterLogin(role);
   }
 
@@ -64,7 +69,37 @@ export class AuthService {
   navigateHome(): void {
     const role = this.role();
     if (!role) { this.router.navigate(['/auth/login']); return; }
+    if (this.mustChangePassword()) {
+      this.router.navigate(['/auth/change-password']);
+      return;
+    }
     this.router.navigate([homeRouteForRole(role)]);
+  }
+
+  changePassword(payload: { currentPassword: string; newPassword: string }): Observable<AuthResponse> {
+    return this.http
+      .post<AuthResponse>(`${environment.apiUrl}/auth/change-password`, payload)
+      .pipe(
+        tap((res) => {
+          localStorage.setItem(TOKEN_KEY, res.token);
+          localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+          this._currentUser.set(res.user);
+        })
+      );
+  }
+
+  requestPasswordReset(email: string): Observable<{ message: string; devResetUrl?: string }> {
+    return this.http.post<{ message: string; devResetUrl?: string }>(
+      `${environment.apiUrl}/auth/forgot-password`,
+      { email },
+    );
+  }
+
+  resetPassword(payload: { token: string; newPassword: string }): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(
+      `${environment.apiUrl}/auth/reset-password`,
+      payload,
+    );
   }
 
   /**

@@ -72,6 +72,7 @@ export const APP_ROUTES: Routes = [
       { path: 'branches',                loadChildren: () => import('./features/branches/branches.routes').then((m) => m.BRANCH_ROUTES) },
       { path: 'enquiries',               loadChildren: () => import('./features/enquiries/enquiries.routes').then((m) => m.ENQUIRY_ROUTES) },
       { path: 'students',                loadChildren: () => import('./features/students/students.routes').then((m) => m.STUDENT_ROUTES) },
+      { path: 'student-import',          loadComponent: () => import('./features/student-import/student-import.component').then((m) => m.StudentImportComponent) },
       { path: 'batches',                 loadChildren: () => import('./features/batches/batches.routes').then((m) => m.BATCH_ROUTES) },
       { path: 'attendance',              loadChildren: () => import('./features/attendance/attendance.routes').then((m) => m.ATTENDANCE_ROUTES) },
       { path: 'trainers',                loadComponent: () => import('./features/trainers/trainers.component').then((m) => m.TrainersComponent) },

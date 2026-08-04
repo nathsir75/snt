@@ -19,6 +19,7 @@ export interface Batch {
   startDate: string;
   endDate: string | null;
   isActive: boolean;
+  isCentralProgramme: boolean;
   createdAt: string;
   updatedAt: string;
   course: BatchCourse;
@@ -35,6 +36,7 @@ export interface CreateBatchPayload {
   endDate?: string;
   schedule?: string;
   capacity?: number;
+  isCentralProgramme?: boolean;
 }
 
 export interface UpdateBatchPayload {
@@ -43,6 +45,7 @@ export interface UpdateBatchPayload {
   capacity?: number;
   endDate?: string;
   isActive?: boolean;
+  isCentralProgramme?: boolean;
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────────

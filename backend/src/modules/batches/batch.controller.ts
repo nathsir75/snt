@@ -27,13 +27,13 @@ export const batchController = {
 
   createBatch: async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { name, courseId, branchId, startDate, endDate, schedule, capacity } = req.body;
+      const { name, courseId, branchId, startDate, endDate, schedule, capacity, isCentralProgramme } = req.body;
       console.log('[Batches] CREATE REQUEST PAYLOAD:', req.body);
       if (!name || !courseId || !branchId || !startDate) {
         res.status(400).json({ message: 'name, courseId, branchId and startDate are required' });
         return;
       }
-      const batch = await batchService.createBatch(req.user!, { name, courseId, branchId, startDate, endDate, schedule, capacity });
+      const batch = await batchService.createBatch(req.user!, { name, courseId, branchId, startDate, endDate, schedule, capacity, isCentralProgramme });
       res.status(201).json(batch);
     } catch (error: any) {
       console.error('[Batches] createBatch error:', error.message);
@@ -68,8 +68,8 @@ export const batchController = {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) { res.status(400).json({ error: 'Invalid batch id' }); return; }
-      const { name, schedule, capacity, endDate, isActive } = req.body;
-      const batch = await batchService.updateBatch(id, req.user!, { name, schedule, capacity, endDate, isActive });
+      const { name, schedule, capacity, endDate, isActive, isCentralProgramme } = req.body;
+      const batch = await batchService.updateBatch(id, req.user!, { name, schedule, capacity, endDate, isActive, isCentralProgramme });
       res.json(batch);
     } catch (error: any) {
       console.error('[Batches] updateBatch error:', error.message);

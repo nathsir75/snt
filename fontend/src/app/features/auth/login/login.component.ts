@@ -70,6 +70,8 @@ import { BranchContextService } from '../../../core/services/branch-context.serv
           >
             {{ loading() ? 'Signing in…' : 'Sign In' }}
           </button>
+
+          <a class="forgot-link" href="/auth/forgot-password">Forgot password?</a>
         </form>
 
         @if (branchCode()) {
