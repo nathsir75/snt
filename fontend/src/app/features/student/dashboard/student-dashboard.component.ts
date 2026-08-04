@@ -197,6 +197,7 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
           <!-- Quick links -->
           <div class="section-title">Quick Access</div>
           <div class="quick-links">
+            <a routerLink="/student/live-class"    class="quick-link quick-link--live card"><span class="quick-link__icon">▶</span><span class="quick-link__label">Live Class</span><span class="quick-link__hint">Open class schedule</span></a>
             <a routerLink="/student/my-course"     class="quick-link card"><span class="quick-link__icon">📚</span><span class="quick-link__label">My Course</span></a>
             <a routerLink="/student/quizzes"       class="quick-link card"><span class="quick-link__icon">?</span><span class="quick-link__label">Daily Quiz</span></a>
             <a routerLink="/student/quiz-history"  class="quick-link card"><span class="quick-link__icon">%</span><span class="quick-link__label">Quiz History</span></a>
@@ -319,6 +320,11 @@ type DashState = 'loading' | 'ready' | 'not_linked' | 'error';
     .quick-link:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
     .quick-link__icon { font-size: 24px; }
     .quick-link__label { font-size: var(--font-size-sm); font-weight: 500; }
+    .quick-link--live {
+      border-color: rgba(37, 99, 235, .28);
+      background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+    }
+    .quick-link__hint { color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.2; }
 
     @media (max-width: 760px) {
       .programme-banner { grid-template-columns: 1fr; gap: 12px; padding: 14px; }

@@ -176,6 +176,7 @@ export const APP_ROUTES: Routes = [
       { path: 'results',      loadComponent: () => import('./features/student/results/student-results.component').then((m) => m.StudentResultsComponent) },
       { path: 'certificates', loadComponent: () => import('./features/student/certificates/student-certificates.component').then((m) => m.StudentCertificatesComponent) },
       { path: 'placements',   loadComponent: () => import('./features/student/placements/student-placements.component').then((m) => m.StudentPlacementsComponent) },
+      { path: 'live-class',   loadComponent: () => import('./features/student/schedule/student-schedule.component').then((m) => m.StudentScheduleComponent) },
       { path: 'schedule',     loadComponent: () => import('./features/student/schedule/student-schedule.component').then((m) => m.StudentScheduleComponent) },
       { path: 'alerts',       loadComponent: () => import('./features/student/alerts/student-alerts.component').then((m) => m.StudentAlertsComponent) },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
